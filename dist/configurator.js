@@ -268,11 +268,11 @@
     background: rgba(184,184,255,0.05); border-left: 2px solid #4a4a8a; color: #aab; }
   #cart-debug-panel.collapsed .body { display: none; }
 `;function Yn({configId:e}){if(document.getElementById("cart-debug-panel"))return;d("<style>").text(ar).appendTo("head");let t=d(`
-    <div id="cart-debug-panel">
+    <div id="cart-debug-panel" class="collapsed">
       <div class="hdr">
         <strong>Cart Debug</strong>
         <span>
-          <span class="ctl" data-act="toggle">[\u2212]</span>
+          <span class="ctl" data-act="toggle">[+]</span>
           <span class="ctl" data-act="close" title="Hide for this session">[\xD7]</span>
         </span>
       </div>

@@ -48,11 +48,11 @@ export function initDebugPanel({ configId }) {
   $('<style>').text(STYLE).appendTo('head');
 
   const $panel = $(`
-    <div id="cart-debug-panel">
+    <div id="cart-debug-panel" class="collapsed">
       <div class="hdr">
         <strong>Cart Debug</strong>
         <span>
-          <span class="ctl" data-act="toggle">[−]</span>
+          <span class="ctl" data-act="toggle">[+]</span>
           <span class="ctl" data-act="close" title="Hide for this session">[×]</span>
         </span>
       </div>
