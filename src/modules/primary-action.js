@@ -62,18 +62,24 @@ function currentState() {
 function syncButton() {
   const $btn = $('[primary-action]');
   const $text = $btn.find('.text-size-large').first();
+  const $totalBlock = $(TOTAL_BLOCK);
+  const $depositEmail = $('[data-deposit-email]');
   const state = currentState();
 
   if (state === 'checkout') {
     $text.text('Checkout →');
-    $(TOTAL_BLOCK).css({ display: 'flex', opacity: 1 });
-    $(PAYMENT_GROUP).closest('[payment-block]').css({ display: '', opacity: '' });
-  } else {
+    $totalBlock.css({ display: 'flex', opacity: 1 });
+    $depositEmail.css({ display: 'none', opacity: 0 });
+  } else if (state === 'save') {
     $text.text('Submit');
-    $(TOTAL_BLOCK).css({ display: 'none', opacity: 0 });
-    if (state === 'interest') {
-      $(PAYMENT_GROUP).closest('[payment-block]').css({ display: 'none', opacity: 0 });
-    }
+    $totalBlock.css({ display: 'none', opacity: 0 });
+    $depositEmail.css({ display: 'flex', opacity: 1 });
+  } else {
+    // interest (non-US) — payment block + deposit email are hidden by
+    // location-flow; nothing extra to do here for those.
+    $text.text('Submit');
+    $totalBlock.css({ display: 'none', opacity: 0 });
+    $depositEmail.css({ display: 'none', opacity: 0 });
   }
 }
 
