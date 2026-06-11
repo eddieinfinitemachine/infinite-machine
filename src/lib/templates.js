@@ -230,10 +230,14 @@ function renderAccessoryVariantOptions($card, product) {
   const optionHtml = $optionTemplate[0].outerHTML;
   $optionTemplate.remove();
 
-  // First selectedOption (Size for helmet) drives the swatch label
+  // First selectedOption (Size for helmet) drives the swatch label. If
+  // Shopify has the product as Size × Color, the same size appears in
+  // multiple variants — dedupe so we render one swatch per unique value.
+  const seen = new Set();
   for (const variant of product.variants) {
     const value = variant.selectedOptions?.[0]?.value;
-    if (!value) continue;
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
     const $optClone = $(optionHtml);
     $optClone.removeAttr('data-variant-option-template');
     $optClone.attr('sf-option-value', value);
