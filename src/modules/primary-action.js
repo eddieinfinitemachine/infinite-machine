@@ -85,10 +85,26 @@ function submitForm(selector) {
   }
   // Populate hidden inputs with current config snapshot before submit
   fillFormSnapshot($form);
-  // jQuery .submit() fires the submit EVENT (which Webflow's form handler
-  // listens to and AJAX-posts to api.webflow.com). Native form.submit()
-  // method bypasses listeners and does a default GET to the current URL.
-  $form.submit();
+
+  // Find the form's internal submit button (Tom added [data-form-button]).
+  // Clicking it fires Webflow's submit handler reliably — far more robust
+  // than jQuery .submit() because Webflow binds on the button click event
+  // and the click goes through the full bubbling chain.
+  const $submitBtn = $form.find('[data-form-button]').first();
+  if (!$submitBtn.length) {
+    console.warn(`[PrimaryAction] No [data-form-button] inside ${selector} — falling back to form.submit() event`);
+    $form.submit();
+    return;
+  }
+
+  // Hide all other configurator step-blocks so only the form's step
+  // remains visible. Webflow will then auto-toggle the form ↔ success div
+  // inside that step on its own.
+  const $thisStep = $form.closest('[step-block]');
+  $('[step-block]').not($thisStep).hide();
+  $('[checkout-actions]').hide();
+
+  $submitBtn[0].click();
 }
 
 // Pulls the current config state from DOM-derived selections and writes to
