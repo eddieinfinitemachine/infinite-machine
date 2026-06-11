@@ -92,29 +92,23 @@ function submitForm(selector) {
   // Populate hidden inputs with current config snapshot before submit
   fillFormSnapshot($form);
 
-  // Find the form's internal submit button (Tom added [data-form-button]).
-  // Clicking it fires Webflow's submit handler reliably — far more robust
-  // than jQuery .submit() because Webflow binds on the button click event
-  // and the click goes through the full bubbling chain.
-  const $submitBtn = $form.find('[data-form-button]').first();
-  if (!$submitBtn.length) {
-    console.warn(`[PrimaryAction] No [data-form-button] inside ${selector} — falling back to form.submit() event`);
-    $form.submit();
-    return;
-  }
-
-  // Hide everything else in the configurator column so only the form's
-  // step remains visible. Webflow auto-toggles form ↔ success div inside
-  // that step on its own.
-  //
-  // We hide siblings of the form's step-block (which catches [product-block],
-  // [payment-block], the location step, and the OTHER form's step) — these
-  // aren't all [step-block]s so a generic step-block selector misses some.
+  // Hide siblings of the form's step-block so only the form's step remains
+  // visible. Webflow auto-toggles form ↔ success div inside that step.
+  // Runs regardless of which submit path we take below.
   const $thisStep = $form.closest('[step-block]');
   $thisStep.siblings().hide();
   $('[checkout-actions]').hide();
 
-  $submitBtn[0].click();
+  // Prefer clicking the form's internal [data-form-button] (more reliable —
+  // Webflow binds the submit on the button click). Fallback to jQuery's
+  // .submit() event for forms that don't have the button yet.
+  const $submitBtn = $form.find('[data-form-button]').first();
+  if ($submitBtn.length) {
+    $submitBtn[0].click();
+  } else {
+    console.warn(`[PrimaryAction] No [data-form-button] inside ${selector} — using form.submit() event fallback`);
+    $form.submit();
+  }
 }
 
 // Pulls the current config state from DOM-derived selections and writes to
