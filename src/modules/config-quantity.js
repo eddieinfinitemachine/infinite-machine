@@ -7,7 +7,7 @@ import { updateLine } from '../lib/cart.js';
 // this configuration". User can still fine-tune individual line qty in the
 // cart drawer; this is the high-level control.
 //
-// Markup convention (auto-injected near [buy-button] if missing):
+// Markup convention (auto-injected near [primary-action] if missing):
 //   [data-config-qty]           outer wrapper
 //   [data-config-qty-input]     display element (text content = qty)
 //   [data-config-qty-up]        + button
@@ -38,9 +38,9 @@ export function initConfigQuantity() {
   // adjacent to the Buy button.
   let $existing = $('[data-config-qty]');
   if (!$existing.length) {
-    const $buy = $('[buy-button]');
+    const $buy = $('[primary-action], [buy-button]').first();
     if (!$buy.length) {
-      console.warn('[ConfigQuantity] No [buy-button] anchor — stepper not injected');
+      console.warn('[ConfigQuantity] No [primary-action] anchor — stepper not injected');
       return;
     }
     $existing = $(`

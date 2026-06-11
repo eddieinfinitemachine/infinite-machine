@@ -226,7 +226,7 @@
   [data-config-qty] .stepper button:disabled { color: #ccc; cursor: not-allowed; }
   [data-config-qty] .stepper [data-config-qty-input] { min-width: 26px;
     text-align: center; }
-`,Nt=!1,oe=null;function Hn(){document.getElementById("config-qty-style")||d('<style id="config-qty-style">').text(Wr).appendTo("head");let e=d("[data-config-qty]");if(!e.length){let t=d("[buy-button]");if(!t.length){console.warn("[ConfigQuantity] No [buy-button] anchor \u2014 stepper not injected");return}e=d(`
+`,Nt=!1,oe=null;function Hn(){document.getElementById("config-qty-style")||d('<style id="config-qty-style">').text(Wr).appendTo("head");let e=d("[data-config-qty]");if(!e.length){let t=d("[primary-action], [buy-button]").first();if(!t.length){console.warn("[ConfigQuantity] No [primary-action] anchor \u2014 stepper not injected");return}e=d(`
       <div data-config-qty>
         <span>Quantity:</span>
         <div class="stepper">
