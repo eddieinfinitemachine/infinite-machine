@@ -122,6 +122,7 @@ function fillFormSnapshot($form) {
       ? ''
       : $('[data-preset-value].sf-active').attr('data-preset-value') || '';
   const wrap = $('[data-inc-item="wrap-label"]').text() || '';
+  const quantity = $('[data-config-qty-input]').first().text().trim() || '1';
   const accessories = $('[data-accessories="list"] [data-item="label"]')
     .map(function () {
       return $(this).text();
@@ -133,5 +134,6 @@ function fillFormSnapshot($form) {
   $form.find('input[name="variant"]').val(variant);
   $form.find('input[name="pack"]').val(pack);
   $form.find('input[name="wrap"]').val(wrap);
+  $form.find('input[name="quantity"]').val(quantity);
   $form.find('input[name="accessories"]').val(accessories);
 }
