@@ -26,6 +26,9 @@ const STYLE = `
     text-align: center; }
 `;
 
+const MIN_QTY = 1;
+const MAX_QTY = 99;
+
 let processing = false;
 let $stepper = null;
 
@@ -76,8 +79,8 @@ async function changeQty(direction) {
     );
     if (sessionLines.length === 0) return;
 
-    const current = sessionLines[0].quantity || 1;
-    const next = Math.max(1, current + direction);
+    const current = sessionLines[0].quantity || MIN_QTY;
+    const next = Math.min(MAX_QTY, Math.max(MIN_QTY, current + direction));
     if (next === current) return;
 
     // Update all session lines to the new quantity. Each updateLine goes
@@ -97,7 +100,8 @@ function updateDisplay(sel) {
   const sessionLines = sel.cart.lines.filter(
     (l) => l.attributesByKey?._config_id === sel.sessionId
   );
-  const qty = sessionLines[0]?.quantity || 1;
+  const qty = sessionLines[0]?.quantity || MIN_QTY;
   $stepper.find('[data-config-qty-input]').text(qty);
-  $stepper.find('[data-config-qty-down]').prop('disabled', qty <= 1);
+  $stepper.find('[data-config-qty-down]').prop('disabled', qty <= MIN_QTY);
+  $stepper.find('[data-config-qty-up]').prop('disabled', qty >= MAX_QTY);
 }
