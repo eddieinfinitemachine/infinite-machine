@@ -25,9 +25,25 @@ export function renderTemplates(config, products, bundles) {
   renderBaseVariantSwatches(config, products);
   renderWrapSwatches(config, products);
   bridgeBundleTemplate();
-  renderAccessoryCards(products);
+  renderAccessoryCards(config, products);
   renderFilters(products);
   bridgeSidebarTemplate();
+}
+
+// Build child-handle → parent-title map from config.accessoryDependencies.
+// Used to render the "Requires X" note on child cards.
+function buildDependencyNotes(config, products) {
+  const notes = new Map();
+  const deps = config.accessoryDependencies || {};
+  for (const [parentHandle, dep] of Object.entries(deps)) {
+    const parentProduct = (products.accessories || []).find((p) => p.handle === parentHandle);
+    if (!parentProduct) continue;
+    const noteText = `Requires ${parentProduct.title}`;
+    for (const childHandle of dep.requiredBy || []) {
+      notes.set(childHandle, noteText);
+    }
+  }
+  return notes;
 }
 
 // ---- Base variant swatches (Black / Silver) -------------------------------
@@ -122,7 +138,7 @@ function bridgeBundleTemplate() {
 
 // ---- Accessory cards ------------------------------------------------------
 
-function renderAccessoryCards(products) {
+function renderAccessoryCards(config, products) {
   const list = products.accessories;
   if (!list?.length) return;
 
@@ -135,6 +151,8 @@ function renderAccessoryCards(products) {
   const $parent = $template.parent();
   const templateHtml = $template[0].outerHTML;
   $template.remove();
+
+  const dependencyNotes = buildDependencyNotes(config, products);
 
   for (const product of list) {
     const numericId = product.id.split('/').pop();
@@ -154,8 +172,14 @@ function renderAccessoryCards(products) {
     // Title
     $clone.find('[accessories-label]').text(product.title);
 
-    // Note — leave empty for now; accessory.note metafield could be wired here
-    $clone.find('[data-accessory-note]').text('').hide();
+    // Dependency note — "Requires Olto Rear Rack" etc.
+    const $note = $clone.find('[data-accessory-note]');
+    const noteText = dependencyNotes.get(product.handle);
+    if (noteText) {
+      $note.text(noteText).show();
+    } else {
+      $note.text('').hide();
+    }
 
     // Variant size sub-template (helmet S/M/L/XL etc.)
     renderAccessoryVariantOptions($clone, product);
