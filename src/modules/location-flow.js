@@ -1,5 +1,6 @@
 import $ from '../lib/jquery.js';
 import { revealItem, hideItem } from '../lib/dom.js';
+import { countries as embeddedCountries } from '../lib/countries.js';
 
 // Region-based show/hide config for the configurator's location/payment flow.
 // Triggered when the user selects a country from #country dropdown.
@@ -57,13 +58,9 @@ export function initLocationFlow() {
 }
 
 function populateCountryOptions($select) {
-  // `countries` is loaded by Webflow custom code as a global (third-party
-  // script that ships a `[{Name, Code}]` array). Bail safely if missing.
-  const list = window.countries;
-  if (!Array.isArray(list)) {
-    console.warn('[Configurator] window.countries not found — skipping country list population');
-    return;
-  }
+  // Embedded list ships with the bundle (src/lib/countries.js). window.countries
+  // is checked first so a page can override with a custom list if needed.
+  const list = Array.isArray(window.countries) ? window.countries : embeddedCountries;
 
   for (const country of list) {
     const option = document.createElement('option');
