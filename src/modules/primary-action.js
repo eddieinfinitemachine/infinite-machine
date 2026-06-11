@@ -97,11 +97,15 @@ function submitForm(selector) {
     return;
   }
 
-  // Hide all other configurator step-blocks so only the form's step
-  // remains visible. Webflow will then auto-toggle the form ↔ success div
-  // inside that step on its own.
+  // Hide everything else in the configurator column so only the form's
+  // step remains visible. Webflow auto-toggles form ↔ success div inside
+  // that step on its own.
+  //
+  // We hide siblings of the form's step-block (which catches [product-block],
+  // [payment-block], the location step, and the OTHER form's step) — these
+  // aren't all [step-block]s so a generic step-block selector misses some.
   const $thisStep = $form.closest('[step-block]');
-  $('[step-block]').not($thisStep).hide();
+  $thisStep.siblings().hide();
   $('[checkout-actions]').hide();
 
   $submitBtn[0].click();
