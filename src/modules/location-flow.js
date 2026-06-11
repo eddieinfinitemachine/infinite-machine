@@ -81,20 +81,23 @@ function setupGeoip($select) {
   // data into window.__geoipData. We pick it up here, OR register a fresh
   // window.geoip if the shim didn't fire yet (defensive fallback).
 
-  const apply = (data) => {
-    const code = data?.country_code || 'US';
-    selectCountryByCode($select, code);
+  // Fetch country code directly from geojs.io. No external script tag needed.
+  // Falls back silently if the request fails — user can still pick manually.
+  fetch('https://get.geojs.io/v1/ip/country')
+    .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then((code) => {
+      const trimmed = code.trim().toUpperCase();
+      if (trimmed) selectCountryByCode($select, trimmed);
+    })
+    .catch((err) => {
+      console.warn('[Configurator] Geoip fetch failed:', err.message);
+    });
+
+  // Also honor the legacy callback in case someone loaded the geo.js script tag
+  window.geoip = (data) => {
+    const code = data?.country_code;
+    if (code) selectCountryByCode($select, code);
   };
-
-  if (window.__geoipData) {
-    apply(window.__geoipData);
-    return;
-  }
-
-  // Shim hasn't captured data yet — register our handler. If shim already
-  // stashed something, this won't be called. If shim never fires (geo.js
-  // failed), nothing happens — country stays unselected, user picks manually.
-  window.geoip = apply;
 }
 
 function selectCountryByCode($select, code) {

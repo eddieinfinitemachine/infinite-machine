@@ -15,6 +15,7 @@ import { bindUi } from '../modules/ui-bindings.js';
 import { initFilters } from '../modules/filters.js';
 import { initCartDrawer } from '../modules/cart-drawer.js';
 import { initConfigQuantity } from '../modules/config-quantity.js';
+import { initPriceDisplay } from '../modules/price-display.js';
 import { initDebugPanel } from '../modules/debug-panel.js';
 
 import { fetchProducts } from './products.js';
@@ -93,6 +94,7 @@ export async function initConfigurator(config) {
   if (config.wrap) initWrapOrchestration(config, products);
   initCartDrawer(config);
   initConfigQuantity();
+  initPriceDisplay();
   initBuyFlow();
 
   // --- Variant chain. Init observer LAST so all subscribers (selection,
