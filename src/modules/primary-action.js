@@ -1,6 +1,6 @@
 import $ from '../lib/jquery.js';
-import { getCheckoutUrl } from '../lib/cart.js';
 import { onRegionChange, getCurrentRegion } from './location-flow.js';
+import { openCartDrawer } from './cart-drawer.js';
 
 // Unified bottom-bar button. One [primary-action] element whose text + click
 // behavior change based on (region, payment-choice). Replaces the legacy
@@ -45,7 +45,7 @@ export function initPrimaryAction() {
   $btn.on('click', (e) => {
     e.preventDefault();
     const state = currentState();
-    if (state === 'checkout') goToCheckout();
+    if (state === 'checkout') openCartDrawer();
     else if (state === 'save') submitForm('#wf-form-Olto-Save-Form');
     else submitForm('#wf-form-Olto-Interest-Form');
   });
@@ -75,12 +75,6 @@ function syncButton() {
       $(PAYMENT_GROUP).closest('[payment-block]').css({ display: 'none', opacity: 0 });
     }
   }
-}
-
-function goToCheckout() {
-  const url = getCheckoutUrl();
-  if (url) window.location.href = url;
-  else console.warn('[PrimaryAction] No checkout URL available yet — is cart empty?');
 }
 
 function submitForm(selector) {
