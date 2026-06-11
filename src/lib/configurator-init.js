@@ -21,6 +21,7 @@ import { fetchProducts } from './products.js';
 import { fetchBundles } from './bundles.js';
 import { initCart, setProducts as setCartProducts } from './cart.js';
 import { initSelection } from './selection.js';
+import { renderTemplates } from './templates.js';
 import $ from './jquery.js';
 
 // Force-reveal the "Included As Standard" base section. Webflow IX2 leaves
@@ -52,6 +53,15 @@ export async function initConfigurator(config) {
   } catch (err) {
     console.error('[Configurator] Failed to fetch products/bundles:', err);
     return;
+  }
+
+  // Render Shopify-driven markup from Webflow-built templates BEFORE cart/
+  // selection/bindings init. After this, downstream modules see the same
+  // markup the legacy CMS-driven page had.
+  try {
+    renderTemplates(config, products, bundles);
+  } catch (err) {
+    console.error('[Configurator] Template rendering failed:', err);
   }
 
   // Give cart access to products so its mutations can construct optimistic
