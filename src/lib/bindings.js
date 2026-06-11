@@ -16,33 +16,25 @@ import { onSelectionChange } from './selection.js';
  *   });
  */
 export function bindActiveClass({ cards, match, className = 'sf-active', alsoOnChildren = false }) {
-  // Diffed updates: only touch DOM for elements whose active state CHANGED.
-  // Without this, every selection change (optimistic + API confirm = 2 notifies
-  // per click) would re-apply the same classes and re-fire CSS animations,
-  // causing visible flicker / re-pulse on cards that should be stable.
-  let prevActive = new Set();
-
+  // Compares the element's CURRENT class state against the desired state,
+  // not just the previous-run state. This matters when another binding
+  // (e.g. an ancestor with alsoOnChildren) writes the same className to
+  // children we're managing — we need to undo their writes if they don't
+  // match. Per-element check + no-op when already correct keeps the
+  // anti-flicker guarantee.
   onSelectionChange((sel) => {
-    const $cards = $(cards);
-    const nextActive = new Set();
-    $cards.each(function () {
-      if (match(this, sel)) nextActive.add(this);
+    $(cards).each(function () {
+      const $el = $(this);
+      const shouldBeActive = match(this, sel);
+      const isActive = $el.hasClass(className);
+      if (shouldBeActive && !isActive) {
+        $el.addClass(className);
+        if (alsoOnChildren) $el.find('*').addClass(className);
+      } else if (!shouldBeActive && isActive) {
+        $el.removeClass(className);
+        if (alsoOnChildren) $el.find('*').removeClass(className);
+      }
     });
-
-    for (const el of prevActive) {
-      if (nextActive.has(el)) continue;
-      const $el = $(el);
-      $el.removeClass(className);
-      if (alsoOnChildren) $el.find('*').removeClass(className);
-    }
-    for (const el of nextActive) {
-      if (prevActive.has(el)) continue;
-      const $el = $(el);
-      $el.addClass(className);
-      if (alsoOnChildren) $el.find('*').addClass(className);
-    }
-
-    prevActive = nextActive;
   });
 }
 
