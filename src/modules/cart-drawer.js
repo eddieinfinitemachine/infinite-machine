@@ -1,7 +1,6 @@
 import $ from '../lib/jquery.js';
 import {
   removeLine,
-  updateLine,
   startNewConfigSession,
   switchToConfig,
   removeConfig,
@@ -55,6 +54,7 @@ const STYLE = `
     grid-template-columns: 36px 1fr auto auto;
     gap: 8px; align-items: center;
     padding: 6px 0; border-top: 1px solid #f0f0f0; }
+  #cart-drawer .line .qty-label { font-size: 11px; color: #888; min-width: 24px; text-align: right; }
   #cart-drawer .line:first-child { border-top: none; }
   #cart-drawer .line img { width: 36px; height: 36px; object-fit: cover;
     background: #f4f4f4; border-radius: 3px; }
@@ -132,15 +132,6 @@ function handleClick(e) {
 
   if (act === 'close') return close();
   if (act === 'remove-line' && lineId) return removeLine(lineId);
-  if (act === 'qty-up' && lineId) {
-    const cur = Number($el.closest('.qty').find('.v').text()) || 1;
-    return updateLine({ lineId, quantity: cur + 1 });
-  }
-  if (act === 'qty-down' && lineId) {
-    const cur = Number($el.closest('.qty').find('.v').text()) || 1;
-    if (cur <= 1) return removeLine(lineId);
-    return updateLine({ lineId, quantity: cur - 1 });
-  }
   if (act === 'edit-config' && sessionId) {
     switchToConfig(sessionId);
     close();
@@ -222,6 +213,7 @@ function renderLine(line) {
   const img = line.merchandise.image?.url || '';
   const price = parseFloat(line.merchandise.price?.amount || 0) * (line.quantity || 1);
 
+  const qtyLabel = (line.quantity || 1) > 1 ? `× ${line.quantity}` : '';
   return `
     <div class="line">
       <img src="${escape(img)}" alt="" loading="lazy" />
@@ -229,11 +221,7 @@ function renderLine(line) {
         ${escape(line.merchandise.product.title)}
         ${optsText ? `<span class="opts">${escape(optsText)}</span>` : ''}
       </div>
-      <div class="qty">
-        <button data-act="qty-down" data-line-id="${escape(line.id)}">−</button>
-        <span class="v">${line.quantity}</span>
-        <button data-act="qty-up" data-line-id="${escape(line.id)}">+</button>
-      </div>
+      <span class="qty-label">${qtyLabel}</span>
       <span class="price">${fmt(price)}</span>
       <button class="remove" data-act="remove-line" data-line-id="${escape(line.id)}" aria-label="Remove">×</button>
     </div>
