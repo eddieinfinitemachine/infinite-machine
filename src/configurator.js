@@ -4,7 +4,10 @@
 import configs from './configs/index.js';
 import { initConfigurator } from './lib/configurator-init.js';
 
-const configKey = document.body.dataset.configurator;
+// Look for [data-configurator] anywhere — body, .page-wrapper, or a section
+// wrapper. First match wins.
+const configEl = document.querySelector('[data-configurator]');
+const configKey = configEl?.dataset.configurator;
 
 if (!configKey) {
   console.error(
