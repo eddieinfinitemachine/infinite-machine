@@ -13,6 +13,7 @@ const PRODUCT_FIELDS = `
   vendor
   tags
   featuredImage { url altText }
+  accessoryEta: metafield(namespace: "custom", key: "accessory_etas") { value }
   collections(first: 10) {
     edges { node { handle title } }
   }
@@ -88,6 +89,7 @@ function normalize(p) {
     vendor: p.vendor,
     tags: p.tags || [],
     featuredImage: p.featuredImage,
+    accessoryEta: p.accessoryEta?.value || null,
     collections: (p.collections?.edges || []).map((e) => e.node),
     variants: p.variants.edges.map(({ node: v }) => ({
       id: v.id,

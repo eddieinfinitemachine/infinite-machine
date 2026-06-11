@@ -191,6 +191,15 @@ function renderAccessoryCards(config, products) {
       $note.text('').hide();
     }
 
+    // ETA / availability — from Shopify metafield custom.accessory_etas.
+    // "In {value}" if set, otherwise hide the element entirely.
+    const $eta = $clone.find('[sf-show-deliver-date]');
+    if (product.accessoryEta) {
+      $eta.text(`In ${product.accessoryEta}`).css({ display: '', opacity: 1 });
+    } else {
+      $eta.hide();
+    }
+
     // Variant size sub-template (helmet S/M/L/XL etc.)
     renderAccessoryVariantOptions($clone, product);
 
