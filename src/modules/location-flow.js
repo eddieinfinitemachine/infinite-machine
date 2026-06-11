@@ -105,10 +105,14 @@ function selectCountryByCode($select, code) {
   for (let i = 0; i < options.length; i++) {
     if ($(options[i]).attr('data-code') === code) {
       $select.prop('selectedIndex', i);
-      locationFlow($select);
+      // Fire change event so form-validation clears the "Response Required"
+      // error state. bindCountryChange handler also fires locationFlow, so
+      // we don't need to call it directly here.
+      $select.trigger('change');
       return;
     }
   }
+  console.warn(`[Configurator] No <option> matched country code "${code}"`);
 }
 
 function locationFlow($select) {
