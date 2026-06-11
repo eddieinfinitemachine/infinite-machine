@@ -93,6 +93,8 @@ export async function initConfigurator(config) {
     initVariantObserver(config);
   }
 
+  $('.checkout_product-load').hide();
+
   console.log(`[Configurator] "${config.id}" boot complete`);
 
   // Floating debug panel (cart state, selection, reset button).
