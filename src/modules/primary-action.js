@@ -85,7 +85,10 @@ function submitForm(selector) {
   }
   // Populate hidden inputs with current config snapshot before submit
   fillFormSnapshot($form);
-  $form[0].submit();
+  // jQuery .submit() fires the submit EVENT (which Webflow's form handler
+  // listens to and AJAX-posts to api.webflow.com). Native form.submit()
+  // method bypasses listeners and does a default GET to the current URL.
+  $form.submit();
 }
 
 // Pulls the current config state from DOM-derived selections and writes to
