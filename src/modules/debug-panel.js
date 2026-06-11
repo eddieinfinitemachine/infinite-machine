@@ -3,11 +3,11 @@ import { onChange, getCart, getCheckoutUrl } from '../lib/cart.js';
 import { onSelectionChange } from '../lib/selection.js';
 
 // Floating debug panel for development. Shows live cart state, selection
-// state, and provides a "reset cart" button. Anchored bottom-right.
+// state, and provides a "reset cart" button. Anchored bottom-left.
 // Remove the initDebugPanel() call in configurator-init.js to disable.
 
 const STYLE = `
-  #cart-debug-panel { position: fixed; bottom: 16px; right: 16px;
+  #cart-debug-panel { position: fixed; bottom: 16px; left: 16px;
     width: 340px; max-height: 70vh; overflow: auto;
     background: rgba(15,15,20,0.96); color: #b8ffb8;
     font: 11px/1.4 ui-monospace, 'SF Mono', Menlo, monospace;
