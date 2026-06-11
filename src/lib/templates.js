@@ -69,7 +69,17 @@ function renderBaseVariantSwatches(config, products) {
   const templateHtml = $template[0].outerHTML;
   $template.remove();
 
-  for (const variant of main.variants) {
+  // Sort: default variant first (config.defaultVariantId), then preserve
+  // Shopify admin order for the rest. Lets Olto put Black (the default)
+  // at the start without depending on admin ordering.
+  const defaultId = config.defaultVariantId;
+  const orderedVariants = [...main.variants].sort((a, b) => {
+    if (a.id.endsWith(defaultId)) return -1;
+    if (b.id.endsWith(defaultId)) return 1;
+    return 0;
+  });
+
+  for (const variant of orderedVariants) {
     const colorOpt = variant.selectedOptions.find((o) => /colou?rs?/i.test(o.name));
     if (!colorOpt) continue;
     const colorName = colorOpt.value;
