@@ -136,36 +136,21 @@ function locationFlow($select) {
   regionChangeHandlers.forEach((h) => h({ region: currentRegion, country: currentCountry }));
 }
 
-// Show / hide the payment block vs the lead-form block based on region.
-// Mirrors the legacy decideFlow('full' | 'form') split. Drops the 'shopify' /
-// 'deposit' variants — those were Shopyflow-internal payment options.
+// Show / hide payment block + interest form per region. Button text/click
+// behavior is owned by modules/primary-action.js — this only manages the
+// section visibility, not the bottom-bar button.
 function applyFlowForRegion(region) {
-  const $paymentBlocks = $('[payment-block]');
+  const $paymentBlock = $('[payment-block]');
   const $formBlock = $('[form-block]');
-  const $buyButton = $('[buy-button]');
-  const $formButton = $('[form-button]');
-  const $depositButton = $('[deposit-button]');
   const $depositEmail = $('[data-deposit-email]');
-  const $totalPrice = $('[data-total-block]');
 
   if (region === 'us') {
-    // Direct-buy flow — only US/Canada
-    revealItem($paymentBlocks);
-    revealItem($buyButton);
-    revealItem($totalPrice);
+    revealItem($paymentBlock);
     hideItem($formBlock);
-    hideItem($formButton);
-    hideItem($depositButton);
     hideItem($depositEmail);
   } else {
-    // Form flow — EU and everywhere else
-    // (EU still shows the EU price via showEuPrice in REGION_CONFIG above)
-    hideItem($paymentBlocks);
-    hideItem($buyButton);
-    hideItem($depositButton);
-    hideItem($totalPrice);
-    hideItem($depositEmail);
+    hideItem($paymentBlock);
     revealItem($formBlock);
-    revealItem($formButton);
+    hideItem($depositEmail);
   }
 }

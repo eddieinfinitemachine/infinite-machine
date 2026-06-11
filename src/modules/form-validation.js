@@ -8,8 +8,10 @@ const VALIDATION_ATTR = 'field-validation';
 const REQUIRED_SELECTOR =
   'input:visible[data-required], select:visible[data-required], textarea:visible[data-required]';
 
-// Buttons that get enabled/disabled based on validation state
-const BUTTON_SELECTORS = '[buy-button], [deposit-button], [form-button]';
+// Buttons that get enabled/disabled based on validation state.
+// [primary-action] is the unified bottom-bar button (current design).
+// Older selectors kept for backwards compat with pages that still use them.
+const BUTTON_SELECTORS = '[primary-action], [buy-button], [deposit-button], [form-button]';
 
 export function initFormValidation() {
   $(document).on('change', REQUIRED_SELECTOR, checkAllRequired);

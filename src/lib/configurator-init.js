@@ -16,6 +16,7 @@ import { initFilters } from '../modules/filters.js';
 import { initCartDrawer } from '../modules/cart-drawer.js';
 import { initConfigQuantity } from '../modules/config-quantity.js';
 import { initPriceDisplay } from '../modules/price-display.js';
+import { initPrimaryAction } from '../modules/primary-action.js';
 import { initDebugPanel } from '../modules/debug-panel.js';
 
 import { fetchProducts } from './products.js';
@@ -95,6 +96,7 @@ export async function initConfigurator(config) {
   initCartDrawer(config);
   initConfigQuantity();
   initPriceDisplay();
+  initPrimaryAction();
   initBuyFlow();
 
   // --- Variant chain. Init observer LAST so all subscribers (selection,
