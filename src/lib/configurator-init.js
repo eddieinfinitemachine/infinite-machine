@@ -28,8 +28,15 @@ import $ from './jquery.js';
 
 // Force-reveal the "Included As Standard" base section. Webflow IX2 leaves
 // these collapsed waiting for scroll/load triggers that aren't reliable here.
+// On mobile/tablet (≤991px) the summary panel is collapsed by design and
+// toggled by the user via [.checkout_order-includes-toggle] (IX2-bound).
+// Forcing height:auto there would break that toggle, so we only set height
+// on desktop. Item opacity is safe to set everywhere — the parent's height
+// hides them on mobile when collapsed regardless.
 function forceRevealBaseSection() {
-  $('.checkout_order-includes-items').css({ height: 'auto' });
+  if (window.innerWidth > 991) {
+    $('.checkout_order-includes-items').css({ height: 'auto' });
+  }
   $('.checkout_includes-item, .modal_ecl-image').css({ opacity: 1 });
 }
 
