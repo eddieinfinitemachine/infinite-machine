@@ -3,15 +3,15 @@ import { setVariant } from './variant-observer.js';
 
 // Click handler for the main product's variant swatches (e.g. Black / Silver
 // on the bike). Tags each swatch at init with [data-variant-id] (numeric).
-// sf-active state is handled by ui-bindings.js (selection-driven).
+// Selected (sf-active) state is handled by ui-bindings.js (selection-driven).
 
 export function initVariantSwatch(config, products) {
   if (!products.main) return;
 
   const mainNumericId = products.main.id.split('/').pop();
-  const $bikeContainer = $(`[sf-product="${mainNumericId}"]`).first();
+  const $bikeContainer = $(`[data-product-id="${mainNumericId}"]`).first();
   if (!$bikeContainer.length) {
-    console.warn(`[VariantSwatch] Main product container [sf-product="${mainNumericId}"] not found`);
+    console.warn(`[VariantSwatch] Main product container [data-product-id="${mainNumericId}"] not found`);
     return;
   }
 
@@ -24,9 +24,9 @@ export function initVariantSwatch(config, products) {
 
   // Tag each swatch
   let tagged = 0;
-  $bikeContainer.find('[sf-option-value]').each(function () {
+  $bikeContainer.find('[data-swatch]').each(function () {
     const $sw = $(this);
-    const value = $sw.attr('sf-option-value');
+    const value = $sw.attr('data-swatch');
     const numericId = colorToNumericId.get(value);
     if (!numericId) return;
     $sw.attr('data-variant-id', numericId);

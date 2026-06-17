@@ -15,7 +15,7 @@ import { updateLine } from '../lib/cart.js';
 
 const STYLE = `
   [data-config-qty] { display: flex; align-items: center; gap: 10px;
-    margin: 8px 0; font-size: 13px; }
+    font-size: 13px; }
   [data-config-qty] .stepper { display: inline-flex; align-items: center;
     border: 1px solid #ddd; border-radius: 3px; }
   [data-config-qty] .stepper button { background: none; border: none;

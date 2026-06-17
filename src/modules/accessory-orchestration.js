@@ -24,7 +24,7 @@ export function initAccessoryOrchestration(config, products) {
   let tagged = 0;
   for (const product of products.accessories) {
     const numericId = product.id.split('/').pop();
-    const $card = $(`[sf-product="${numericId}"]`).first();
+    const $card = $(`[data-product-id="${numericId}"]`).first();
     if (!$card.length) continue;
     const variant = product.variants[0];
     if (!variant) continue;
@@ -42,8 +42,8 @@ export function initAccessoryOrchestration(config, products) {
         const value = v.selectedOptions?.[0]?.value;
         if (value && !variantByOption.has(value)) variantByOption.set(value, v.id);
       }
-      $card.find('[sf-option-value]').each(function () {
-        const value = $(this).attr('sf-option-value');
+      $card.find('[data-swatch]').each(function () {
+        const value = $(this).attr('data-swatch');
         const id = variantByOption.get(value);
         if (id) $(this).attr(OPTION_ATTR, id);
       });
@@ -51,11 +51,11 @@ export function initAccessoryOrchestration(config, products) {
 
     // Fill + reveal the price element. Was hidden by default (Shopyflow used
     // to populate and show it). USD → $X.XX, other currencies → "EUR 28.00".
-    const $price = $card.find('[sf-show-price="1"]').first();
+    const $price = $card.find('[data-price]').first();
     if ($price.length && variant.price) {
       const amount = parseFloat(variant.price.amount).toFixed(2);
       const symbol = variant.price.currencyCode === 'USD' ? '$' : `${variant.price.currencyCode} `;
-      $price.text(`${symbol}${amount}`).css({ display: 'flex', opacity: 1 });
+      $price.text(`${symbol}${amount}`).css({ opacity: 1 });
     }
 
     tagged++;
@@ -66,7 +66,7 @@ export function initAccessoryOrchestration(config, products) {
   // so it only affects the CURRENT config. activeBundle no longer needs manual
   // clearing — it's now derived from accessories matching a bundle exactly.
   $(document).on('click.accessoryOrch', `[${HANDLE_ATTR}]`, function (e) {
-    if ($(e.target).closest('[sf-option-value], [sf-change-option]').length) return;
+    if ($(e.target).closest('[data-swatch], [data-option-group], [data-step="acs-play"]').length) return;
     e.preventDefault();
     e.stopImmediatePropagation();
     const $card = $(this);

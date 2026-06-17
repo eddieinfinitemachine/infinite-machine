@@ -6,11 +6,35 @@
 export default {
   id: 'olto',
 
+  // Flow definition — the ONLY place step order / numbering / structure is
+  // declared. lib/flow.js builds the entire right-hand column from this list:
+  // each entry becomes a step block inside [data-flow="steps"], in this order;
+  // the sticky bottom bar (total + action button) is built into
+  // [data-flow="actions"]. Add / insert / reorder / rename a step by editing
+  // this array — no Webflow work needed. Every step is collapsible and collapsed
+  // by default. Per-step flags:
+  //   validation  — show the "Response Required" line in the head (location/forms)
+  //   startOpen   — expand this step on load instead of collapsed
+  steps: [
+    { type: 'location', no: '01', title: 'Location', validation: true, startOpen: true },
+    { type: 'variant', no: '02', title: 'Base' },
+    { type: 'wrap', no: '03', title: 'Wrap' },
+    { type: 'bundle', no: '04', title: 'Accessory Pack' },
+    { type: 'accessories', no: '05', title: 'Configure your Accessories' },
+    { type: 'quantity', no: '06', title: 'Quantity' },
+  ],
+
   // Main product (queried by handle, not ID — handles survive product re-creation)
   product: { handle: 'olto-1' },
 
   // Accessory list — drag-drop ordered in Shopify
   accessoriesCollection: 'olto-accessories',
+
+  // TEMP (testing) — fallback instruction-video used for every accessory that
+  // doesn't yet have its own `custom.instruction_video` metafield. Remove once
+  // the real Bunny clips are uploaded per accessory.
+  testInstructionVideo:
+    'https://vz-19725589-529.b-cdn.net/a4c98a2a-412b-4e2e-a2ce-4e9a64123464/playlist.m3u8',
 
   // Color wrap (single product with 5 color variants — Custom hex deprecated)
   wrap: {

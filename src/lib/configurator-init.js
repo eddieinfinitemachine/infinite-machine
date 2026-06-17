@@ -1,10 +1,11 @@
-import { initAccordion } from '../modules/accordion.js';
 import { initFormValidation } from '../modules/form-validation.js';
 import { initLocationFlow } from '../modules/location-flow.js';
 import { initVariantObserver } from '../modules/variant-observer.js';
 import { initAccessorySidebar } from '../modules/accessory-sidebar.js';
 import { initAccessoryDependencies } from '../modules/accessory-dependencies.js';
 import { initCustomImages } from '../modules/custom-images.js';
+import { initAccessoryLayers } from '../modules/accessory-layers.js';
+import { initAccessoryVideo } from '../modules/accessory-video.js';
 import { initBundlesUi } from '../modules/bundles-ui.js';
 import { initWrapOrchestration } from '../modules/wrap-orchestration.js';
 import { initAccessoryOrchestration } from '../modules/accessory-orchestration.js';
@@ -24,19 +25,14 @@ import { fetchBundles } from './bundles.js';
 import { initCart, setProducts as setCartProducts } from './cart.js';
 import { initSelection } from './selection.js';
 import { renderTemplates } from './templates.js';
+import { buildFlow } from './flow.js';
 import $ from './jquery.js';
 
-// Force-reveal the "Included As Standard" base section. Webflow IX2 leaves
-// these collapsed waiting for scroll/load triggers that aren't reliable here.
-// On mobile/tablet (≤991px) the summary panel is collapsed by design and
-// toggled by the user via [.checkout_order-includes-toggle] (IX2-bound).
-// Forcing height:auto there would break that toggle, so we only set height
-// on desktop. Item opacity is safe to set everywhere — the parent's height
-// hides them on mobile when collapsed regardless.
+// Force-reveal the "Included As Standard" base section items. Webflow IX2
+// leaves these collapsed waiting for scroll/load triggers that aren't reliable
+// here, so we set opacity directly — the parent's height still governs the
+// mobile collapse/toggle.
 function forceRevealBaseSection() {
-  if (window.innerWidth > 991) {
-    $('.checkout_order-includes-items').css({ height: 'auto' });
-  }
   $('.checkout_includes-item, .modal_ecl-image').css({ opacity: 1 });
 }
 
@@ -45,11 +41,15 @@ export async function initConfigurator(config) {
 
   forceRevealBaseSection();
 
+  // Build the entire step skeleton from config.steps BEFORE anything else runs.
+  // Generates the DOM (mounts + template atoms) that every module below queries,
+  // so location-flow, accordions, form-validation etc. find what they expect.
+  buildFlow(config);
+
   // --- Pure DOM (no Shopify dep) ---
+  // (Step accordions are wired per-step inside buildFlow.)
   initFormValidation();
   initLocationFlow();
-  if (config.accessoriesCollection) initAccordion('accessories');
-  if (config.wrap) initAccordion('wraps', { startOpen: false });
 
   // --- Shopify-backed: fetch products, init cart ---
   let products;
@@ -97,6 +97,8 @@ export async function initConfigurator(config) {
   // [data-accessory-handle] for collection tagging.
   if (config.accessoriesCollection) initFilters(products);
   if (config.accessoryDependencies) initAccessoryDependencies(config, products);
+  if (config.accessoriesCollection) initAccessoryLayers(config, products);
+  if (config.accessoriesCollection) initAccessoryVideo(config, products);
   if (Array.isArray(config.customImageRules)) initCustomImages(config, products);
   if (config.bundles) initBundlesUi(config, products, bundles);
   if (config.wrap) initWrapOrchestration(config, products);

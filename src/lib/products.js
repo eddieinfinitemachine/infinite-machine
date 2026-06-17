@@ -14,6 +14,7 @@ const PRODUCT_FIELDS = `
   tags
   featuredImage { url altText }
   accessoryEta: metafield(namespace: "custom", key: "accessory_etas") { value }
+  instructionVideo: metafield(namespace: "custom", key: "instruction_video") { value }
   collections(first: 10) {
     edges { node { handle title } }
   }
@@ -90,6 +91,7 @@ function normalize(p) {
     tags: p.tags || [],
     featuredImage: p.featuredImage,
     accessoryEta: p.accessoryEta?.value || null,
+    instructionVideo: p.instructionVideo?.value || null,
     collections: (p.collections?.edges || []).map((e) => e.node),
     variants: p.variants.edges.map(({ node: v }) => ({
       id: v.id,

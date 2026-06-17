@@ -7,8 +7,8 @@ import $ from './jquery.js';
 //
 // Webflow author builds ONE template per repeating element type. This file
 // clones the template per Shopify variant/product/category and adds the
-// legacy attributes (`sf-option-value`, `sf-product`, `fs-list-field`, etc.)
-// that downstream modules expect.
+// attributes (`data-swatch`, `data-product-id`, `fs-list-field`, etc.) that
+// downstream modules expect.
 
 const TEMPLATE_SELECTORS = {
   baseVariant: '[data-variant-swatch-template]',
@@ -60,11 +60,11 @@ function renderBaseVariantSwatches(config, products) {
 
   const $parent = $template.parent();
 
-  // The existing variant-swatch module reads [sf-product="<numericId>"] as the
-  // delegation root. Add it to the [sf-change-option="color"] wrapper.
+  // The variant-swatch module reads [data-product-id="<numericId>"] as the
+  // delegation root. Add it to the [data-option-group="color"] wrapper.
   const mainNumericId = main.id.split('/').pop();
-  const $colorGroup = $template.closest('[sf-change-option="color"]');
-  if ($colorGroup.length) $colorGroup.attr('sf-product', mainNumericId);
+  const $colorGroup = $template.closest('[data-option-group="color"]');
+  if ($colorGroup.length) $colorGroup.attr('data-product-id', mainNumericId);
 
   const templateHtml = $template[0].outerHTML;
   $template.remove();
@@ -88,7 +88,7 @@ function renderBaseVariantSwatches(config, products) {
 
     const $clone = $(templateHtml);
     $clone.removeAttr('data-variant-swatch-template');
-    $clone.attr('sf-option-value', colorName);
+    $clone.attr('data-swatch', colorName);
     $clone.find('.checkout_option-text').first().text(colorName);
     $clone.find('.checkout_option-swatch').first().css('background-color', hex);
     $parent.append($clone);
@@ -109,11 +109,12 @@ function renderWrapSwatches(config, products) {
 
   const $parent = $template.parent();
 
-  // wrap-orchestration reads [sf-product="<numericId>"] as the delegation root.
-  // The wrap content container is [data-step-wraps="content"].
+  // wrap-orchestration reads [data-product-id="<numericId>"] as the delegation
+  // root. Stamp it on the wrap step's collapsible content (the swatch template's
+  // nearest [data-step-content]).
   const wrapNumericId = wrap.id.split('/').pop();
-  const $wrapContainer = $template.closest('[data-step-wraps="content"]');
-  if ($wrapContainer.length) $wrapContainer.attr('sf-product', wrapNumericId);
+  const $wrapContainer = $template.closest('[data-step-content]');
+  if ($wrapContainer.length) $wrapContainer.attr('data-product-id', wrapNumericId);
 
   const templateHtml = $template[0].outerHTML;
   $template.remove();
@@ -126,9 +127,9 @@ function renderWrapSwatches(config, products) {
 
     const $clone = $(templateHtml);
     $clone.removeAttr('data-wrap-swatch-template');
-    $clone.attr('sf-add-to-cart', variant.id);
-    $clone.attr('sf-option-value', colorName);
-    $clone.find('[sf-show-option-title="1"], .checkout_option-text').first().text(colorName);
+    $clone.attr('data-variant-gid', variant.id);
+    $clone.attr('data-swatch', colorName);
+    $clone.find('.checkout_option-text').first().text(colorName);
     $clone.find('.checkout_option-swatch').first().css('background-color', hex);
     $parent.append($clone);
   }
@@ -171,9 +172,9 @@ function renderAccessoryCards(config, products) {
 
     const $clone = $(templateHtml);
     $clone.removeAttr('data-accessory-template');
-    // accessory-orchestration tags via [sf-product="<numericId>"]
-    $clone.attr('sf-product', numericId);
-    $clone.attr('sf-add-to-cart', firstVariant.id);
+    // accessory-orchestration tags via [data-product-id="<numericId>"]
+    $clone.attr('data-product-id', numericId);
+    $clone.attr('data-variant-gid', firstVariant.id);
 
     // Image
     const imgUrl = product.featuredImage?.url || firstVariant.image?.url || '';
@@ -193,7 +194,7 @@ function renderAccessoryCards(config, products) {
 
     // ETA / availability — from Shopify metafield custom.accessory_etas.
     // "In {value}" if set, otherwise hide the element entirely.
-    const $eta = $clone.find('[sf-show-deliver-date]');
+    const $eta = $clone.find('[data-deliver-date]');
     if (product.accessoryEta) {
       $eta.text(`In ${product.accessoryEta}`).css({ display: '', opacity: 1 });
     } else {
@@ -204,8 +205,8 @@ function renderAccessoryCards(config, products) {
     renderAccessoryVariantOptions($clone, product);
 
     // Price element — set initial value; accessory-orchestration also runs and
-    // re-formats. Keep [sf-show-price="1"] so module finds it.
-    const $price = $clone.find('[sf-show-price="1"]').first();
+    // re-formats. Keep [data-price] so module finds it.
+    const $price = $clone.find('[data-price]').first();
     if ($price.length && firstVariant.price) {
       const amount = parseFloat(firstVariant.price.amount).toFixed(2);
       const symbol = firstVariant.price.currencyCode === 'USD' ? '$' : `${firstVariant.price.currencyCode} `;
@@ -240,7 +241,7 @@ function renderAccessoryVariantOptions($card, product) {
     seen.add(value);
     const $optClone = $(optionHtml);
     $optClone.removeAttr('data-variant-option-template');
-    $optClone.attr('sf-option-value', value);
+    $optClone.attr('data-swatch', value);
     // The inner text element holds the label
     $optClone.find('div').first().text(value);
     $optionParent.append($optClone);

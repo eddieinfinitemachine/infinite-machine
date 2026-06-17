@@ -7,7 +7,7 @@ import { openCartDrawer } from './cart-drawer.js';
 // trio of [buy-button] / [deposit-button] / [form-button].
 //
 // State matrix:
-//   region=us, payment=full        → "Checkout →"  → Shopify checkout
+//   region=us, payment=full        → "Checkout"    → Shopify checkout
 //   region=us, payment=deposit     → "Submit"      → submit Save Form
 //   region=non-us                  → "Submit"      → submit Interest Form
 //
@@ -45,6 +45,7 @@ export function initPrimaryAction() {
   $btn.on('click', (e) => {
     e.preventDefault();
     const state = currentState();
+    console.log('[PrimaryAction] click → state:', state, '| region:', getCurrentRegion(), '| payment:', currentPayment);
     if (state === 'checkout') openCartDrawer();
     else if (state === 'save') submitForm('#wf-form-Olto-Save-Form');
     else submitForm('#wf-form-Olto-Interest-Form');
@@ -67,7 +68,7 @@ function syncButton() {
   const state = currentState();
 
   if (state === 'checkout') {
-    $text.text('Checkout →');
+    $text.text('Checkout');
     $totalBlock.css({ display: 'flex', opacity: 1 });
     $depositEmail.css({ display: 'none', opacity: 0 });
   } else if (state === 'save') {
@@ -116,7 +117,7 @@ function submitForm(selector) {
 // configuration the user was looking at when they submitted.
 function fillFormSnapshot($form) {
   const country = $('#country').val() || '';
-  const variant = $('[sf-change-option="color"] .sf-active[sf-option-value]').attr('sf-option-value') || '';
+  const variant = $('[data-option-group="color"] .sf-active[data-swatch]').attr('data-swatch') || '';
   const pack =
     $(`${PAYMENT_GROUP} .${ACTIVE_CLASS}`).attr('data-option-value') === 'full'
       ? ''

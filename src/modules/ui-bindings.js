@@ -46,7 +46,7 @@ export function bindUi(config) {
 
     // "None" card — active when no wrap in cart
     bindSelectedCard({
-      cards: '[sf-option-value="none"]',
+      cards: '[data-swatch="none"]',
       match: (_, sel) => !sel.wrap,
     });
 
@@ -90,7 +90,7 @@ export function bindUi(config) {
     });
 
     // Active size/option swatch on multi-variant accessories. Selector
-    // targets ALL [sf-option-value] swatches inside accessory cards (not
+    // targets ALL [data-swatch] swatches inside accessory cards (not
     // just tagged ones) — necessary because the accessory card binding
     // above has alsoOnChildren:true and broadcasts sf-active to every
     // descendant when the card is selected. Without targeting untagged
@@ -98,7 +98,7 @@ export function bindUi(config) {
     // card binding. Match adds sf-active only to the swatch whose
     // data-accessory-option-id matches the cart's helmet variant.
     bindActiveClass({
-      cards: '[data-accessory-handle] [sf-option-value]',
+      cards: '[data-accessory-handle] [data-swatch]',
       match: (sw, sel) => {
         const id = sw.getAttribute('data-accessory-option-id');
         return id && sel.accessories.some((a) => a.variantId === id);

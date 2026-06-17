@@ -19,9 +19,9 @@ export function initWrapOrchestration(config, products) {
   const wrapProduct = products.wrap;
   const wrapHandle = wrapProduct.handle;
   const numericProductId = wrapProduct.id.split('/').pop();
-  const wrapNode = document.querySelector(`[sf-product="${numericProductId}"]`);
+  const wrapNode = document.querySelector(`[data-product-id="${numericProductId}"]`);
   if (!wrapNode) {
-    console.warn(`[Wrap] Container [sf-product="${numericProductId}"] not found`);
+    console.warn(`[Wrap] Container [data-product-id="${numericProductId}"] not found`);
     return;
   }
 
@@ -39,10 +39,10 @@ function tagWrapCards(wrapNode, wrapProduct) {
   }
 
   $(wrapNode)
-    .find('[sf-add-to-cart][sf-option-value]')
+    .find('[data-variant-gid][data-swatch]')
     .each(function () {
       const $card = $(this);
-      const value = $card.attr('sf-option-value');
+      const value = $card.attr('data-swatch');
       if (value === 'Custom') {
         $card.hide(); // deprecated Custom card
         return;
@@ -59,7 +59,7 @@ function bindClickHandlers(wrapNode, wrapHandle) {
   wrapNode.addEventListener(
     'click',
     (e) => {
-      const card = e.target.closest(`[sf-add-to-cart][${VARIANT_ATTR}]`);
+      const card = e.target.closest(`[data-variant-gid][${VARIANT_ATTR}]`);
       if (!card) return;
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -72,7 +72,7 @@ function bindClickHandlers(wrapNode, wrapHandle) {
   );
 
   // "None" card — clear wrap
-  $('[sf-option-value="none"]').on('click.wrap', function (e) {
+  $('[data-swatch="none"]').on('click.wrap', function (e) {
     e.preventDefault();
     e.stopImmediatePropagation();
     setLineForProduct(wrapHandle, null);

@@ -136,21 +136,13 @@ function locationFlow($select) {
   regionChangeHandlers.forEach((h) => h({ region: currentRegion, country: currentCountry }));
 }
 
-// Show / hide payment block + interest form per region. Button text/click
-// behavior is owned by modules/primary-action.js — this only manages the
-// section visibility, not the bottom-bar button.
+// Two flows only, gated by region:
+//   US (+ Canada) → Full Payment — configure → bottom-bar checkout → Shopify
+//   Rest of world → Register Your Interest — the [form-block] email capture
+// Button text/click behavior is owned by modules/primary-action.js; this only
+// toggles the interest form's visibility.
 function applyFlowForRegion(region) {
-  const $paymentBlock = $('[payment-block]');
   const $formBlock = $('[form-block]');
-  const $depositEmail = $('[data-deposit-email]');
-
-  if (region === 'us') {
-    revealItem($paymentBlock);
-    hideItem($formBlock);
-    hideItem($depositEmail);
-  } else {
-    hideItem($paymentBlock);
-    revealItem($formBlock);
-    hideItem($depositEmail);
-  }
+  if (region === 'us') hideItem($formBlock);
+  else revealItem($formBlock);
 }

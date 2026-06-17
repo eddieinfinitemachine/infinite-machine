@@ -8,127 +8,97 @@ import {
 } from '../lib/cart.js';
 import { onSelectionChange, getSelection } from '../lib/selection.js';
 
-// Floating cart drawer with multi-config support. All UI is injected via JS
-// (no Webflow markup required) so styling is unstyled-but-usable. Tom can
-// either keep this as-is or replace later with a Webflow-built drawer that
-// uses the same data attributes.
+// Cart drawer. The shell + group/line templates are BUILT AND STYLED IN WEBFLOW;
+// this module only toggles open/closed state and clones the templates to render
+// the current cart. No styles or markup are injected.
 //
-// Capabilities:
-//   - Multi-config: each cart config_id renders as its own group
-//   - Per-line qty +/- (bike line is qty-locked at 1)
-//   - Per-line remove
-//   - Per-config Edit (switch to this config) / Remove (drop the whole config)
-//   - "Configure another bike" (start new session)
-//   - Checkout → Shopify hosted checkout
-
-const STYLE = `
-  #cart-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 380px;
-    background: #fff; color: #111; border-left: 1px solid #ddd;
-    z-index: 2147483646; display: flex; flex-direction: column;
-    transform: translateX(100%); transition: transform 0.2s ease-out;
-    font: 13px/1.4 ui-sans-serif, system-ui, sans-serif; }
-  #cart-drawer.open { transform: translateX(0); }
-  #cart-drawer-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4);
-    z-index: 2147483645; opacity: 0; pointer-events: none;
-    transition: opacity 0.2s ease-out; }
-  #cart-drawer-overlay.open { opacity: 1; pointer-events: auto; }
-  #cart-drawer .hdr { display: flex; justify-content: space-between; align-items: center;
-    padding: 14px 16px; border-bottom: 1px solid #eee; }
-  #cart-drawer .hdr strong { font-size: 14px; }
-  #cart-drawer .hdr button { background: none; border: none; font-size: 22px;
-    cursor: pointer; padding: 0 6px; line-height: 1; }
-  #cart-drawer .body { flex: 1; overflow-y: auto; padding: 12px 16px; }
-  #cart-drawer .empty { color: #888; padding: 40px 0; text-align: center; }
-  #cart-drawer .group { border: 1px solid #ddd; border-radius: 4px;
-    padding: 10px 12px; margin-bottom: 12px; }
-  #cart-drawer .group.current { border-color: #111; }
-  #cart-drawer .group-hdr { display: flex; justify-content: space-between;
-    align-items: baseline; margin-bottom: 8px; }
-  #cart-drawer .group-hdr strong { font-size: 13px; }
-  #cart-drawer .group-hdr .meta { color: #888; font-size: 11px; }
-  #cart-drawer .group-actions { margin-top: 8px; display: flex; gap: 6px; }
-  #cart-drawer .group-actions button { background: #f4f4f4; border: 1px solid #ddd;
-    padding: 4px 8px; font-size: 11px; cursor: pointer; border-radius: 3px; }
-  #cart-drawer .group-actions button.danger { color: #b00; }
-  #cart-drawer .line { display: grid;
-    grid-template-columns: 36px 1fr auto auto;
-    gap: 8px; align-items: center;
-    padding: 6px 0; border-top: 1px solid #f0f0f0; }
-  #cart-drawer .line .qty-label { font-size: 11px; color: #888; min-width: 24px; text-align: right; }
-  #cart-drawer .line:first-child { border-top: none; }
-  #cart-drawer .line img { width: 36px; height: 36px; object-fit: cover;
-    background: #f4f4f4; border-radius: 3px; }
-  #cart-drawer .line .title { font-size: 12px; }
-  #cart-drawer .line .title .opts { color: #888; display: block; font-size: 11px; }
-  #cart-drawer .qty { display: flex; align-items: center; gap: 4px;
-    border: 1px solid #ddd; border-radius: 3px; }
-  #cart-drawer .qty button { background: none; border: none; width: 22px; height: 22px;
-    cursor: pointer; font-size: 13px; padding: 0; }
-  #cart-drawer .qty button:disabled { color: #ccc; cursor: not-allowed; }
-  #cart-drawer .qty .v { min-width: 16px; text-align: center; font-size: 12px; }
-  #cart-drawer .line .price { font-size: 12px; min-width: 50px; text-align: right; }
-  #cart-drawer .line button.remove { background: none; border: none; color: #b00;
-    cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; }
-  #cart-drawer .footer { border-top: 1px solid #eee; padding: 12px 16px; }
-  #cart-drawer .total { display: flex; justify-content: space-between;
-    font-weight: 600; margin-bottom: 10px; }
-  #cart-drawer .footer button { width: 100%; padding: 10px; font-size: 13px;
-    cursor: pointer; margin-bottom: 6px; border-radius: 3px; }
-  #cart-drawer .footer .add-another { background: #fff; color: #111; border: 1px solid #111; }
-  #cart-drawer .footer .checkout { background: #111; color: #fff; border: 1px solid #111; }
-  #cart-drawer .footer .checkout:disabled { background: #888; border-color: #888; cursor: not-allowed; }
-`;
+// Required markup (hooks):
+//   [data-cart-drawer]              drawer wrapper — we set data-cart-state="open|closed"
+//     [data-act="close"]            any close trigger (overlay, × button)
+//     [data-cart-empty]             empty-state element (shown only when cart empty)
+//     [data-cart-groups]            mount point for the cloned config groups
+//     [data-cart-group-template]    ONE group template (cloned per config; style="display:none"):
+//        [data-group-name]          config title text
+//        [data-group-meta]          subtotal · item count text
+//        [data-group-lines]         mount for the cloned lines
+//        [data-group-edit]          (also data-act="edit-config") switch to this config
+//        [data-group-editing]       "currently editing" label (shown on the active config)
+//        [data-group-remove]        (also data-act="remove-config") drop the whole config
+//        [data-cart-line-template]  ONE line template (cloned per line; style="display:none"):
+//           [data-line-img]         <img> thumbnail
+//           [data-line-title]       product title text
+//           [data-line-opts]        variant/options text (hidden when none)
+//           [data-line-qty]         "× N" label (blank when qty 1)
+//           [data-line-price]       line price text
+//           [data-act="remove-line"] remove this line
+//     [data-cart-total]             total amount text
+//     [data-act="add-another"]      start a new config session
+//     [data-act="checkout"]         go to Shopify checkout (auto-disabled when empty)
+//
+// Style the open/close transition in Webflow off [data-cart-state="open"].
+// The bike line is qty-locked (no stepper) — qty is driven from the configurator.
 
 const BIKE_HANDLE_KEY = 'mainProductHandle';
 
 let cfg = null;
+let groupTemplateHtml = null;
+let initialized = false;
 
 export function initCartDrawer(config) {
-  if (document.getElementById('cart-drawer')) return; // idempotent
+  if (initialized) return;
+  const drawer = document.querySelector('[data-cart-drawer]');
+  if (!drawer) {
+    console.warn('[CartDrawer] No [data-cart-drawer] markup on page — drawer disabled');
+    return;
+  }
+  initialized = true;
   cfg = config;
   cfg[BIKE_HANDLE_KEY] = config.product?.handle;
 
-  $('<style>').text(STYLE).appendTo('head');
+  // Cache the group template (with its nested line template) and remove it from
+  // the DOM so only cloned, filled copies ever render.
+  const $tpl = $(drawer).find('[data-cart-group-template]').first();
+  if ($tpl.length) {
+    groupTemplateHtml = $tpl[0].outerHTML;
+    $tpl.remove();
+  } else {
+    console.warn('[CartDrawer] No [data-cart-group-template] — groups will not render');
+  }
+  console.log('[CartDrawer] init OK — drawer found, group template:', $tpl.length ? 'cached' : 'MISSING');
 
-  const $overlay = $('<div id="cart-drawer-overlay"></div>');
-  const $drawer = $(`
-    <div id="cart-drawer" aria-hidden="true">
-      <div class="hdr">
-        <strong>Your cart</strong>
-        <button data-act="close" aria-label="Close">×</button>
-      </div>
-      <div class="body"></div>
-      <div class="footer">
-        <div class="total"><span>Total</span><span class="total-amt">$0.00</span></div>
-        <button class="add-another" data-act="add-another">+ Configure another bike</button>
-        <button class="checkout" data-act="checkout">Checkout →</button>
-      </div>
-    </div>
-  `);
-  $('body').append($overlay).append($drawer);
-
-  $overlay.on('click', close);
-  $drawer.on('click', '[data-act]', handleClick);
+  setState(drawer, 'closed');
+  $(drawer).on('click', '[data-act]', handleClick);
 
   onSelectionChange(render);
   render(getSelection());
 }
 
+function setState(drawer, state) {
+  drawer.setAttribute('data-cart-state', state);
+  drawer.setAttribute('aria-hidden', state === 'open' ? 'false' : 'true');
+}
+
 export function openCartDrawer() {
-  $('#cart-drawer-overlay').addClass('open');
-  $('#cart-drawer').addClass('open').attr('aria-hidden', 'false');
+  const drawer = document.querySelector('[data-cart-drawer]');
+  if (!drawer) {
+    console.warn('[CartDrawer] openCartDrawer: no [data-cart-drawer] found — nothing to open');
+    return;
+  }
+  console.log('[CartDrawer] openCartDrawer → setting data-cart-state="open" on', drawer);
+  setState(drawer, 'open');
 }
 
 function close() {
-  $('#cart-drawer-overlay').removeClass('open');
-  $('#cart-drawer').removeClass('open').attr('aria-hidden', 'true');
+  const drawer = document.querySelector('[data-cart-drawer]');
+  if (drawer) setState(drawer, 'closed');
 }
 
 function handleClick(e) {
-  const $el = $(this);
-  const act = $el.attr('data-act');
-  const lineId = $el.attr('data-line-id');
-  const sessionId = $el.attr('data-session-id');
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const act = el.getAttribute('data-act');
+  const lineId = el.getAttribute('data-line-id');
+  const sessionId = el.getAttribute('data-session-id');
 
   if (act === 'close') return close();
   if (act === 'remove-line' && lineId) return removeLine(lineId);
@@ -155,83 +125,115 @@ function handleClick(e) {
 
 function render(sel) {
   if (!sel) return;
-  const $body = $('#cart-drawer .body');
+  const drawer = document.querySelector('[data-cart-drawer]');
+  if (!drawer) return;
+
+  const $groups = $(drawer).find('[data-cart-groups]');
+  const $empty = $(drawer).find('[data-cart-empty]');
+  const $total = $(drawer).find('[data-cart-total]');
+  const $checkout = $(drawer).find('[data-act="checkout"]');
   const configs = sel.allConfigs || [];
 
+  $groups.empty();
+
   if (configs.length === 0 || !sel.cart?.lines?.length) {
-    $body.html('<div class="empty">Your cart is empty.</div>');
-    $('#cart-drawer .total-amt').text('$0.00');
-    $('#cart-drawer .checkout').prop('disabled', true);
+    $empty.show();
+    $total.text(fmt(0));
+    $checkout.prop('disabled', true);
     return;
   }
 
+  $empty.hide();
+  $checkout.prop('disabled', false);
+
   let totalAmount = 0;
-  const groupsHtml = configs
-    .map((group, i) => {
-      const allLinesForGroup = [group.bikeLine, group.wrapLine, ...group.accessoryLines].filter(Boolean);
-      const groupSubtotal = allLinesForGroup.reduce(
-        (sum, l) => sum + parseFloat(l.merchandise.price?.amount || 0) * (l.quantity || 1),
-        0
-      );
-      totalAmount += groupSubtotal;
+  configs.forEach((group, i) => {
+    const lines = [group.bikeLine, group.wrapLine, ...group.accessoryLines].filter(Boolean);
+    const subtotal = lines.reduce(
+      (s, l) => s + parseFloat(l.merchandise.price?.amount || 0) * (l.quantity || 1),
+      0
+    );
+    totalAmount += subtotal;
+    if (groupTemplateHtml) $groups.append(buildGroup(group, i, lines, subtotal));
+  });
 
-      const linesHtml = allLinesForGroup.map((line) => renderLine(line)).join('');
-      const isBike = group.bikeLine?.merchandise.selectedOptions?.find((o) => /colou?r/i.test(o.name));
-      const headerName = group.bikeLine
-        ? `Bike ${i + 1}${isBike ? ` — ${isBike.value}` : ''}`
-        : `Configuration ${i + 1}`;
-
-      return `
-        <div class="group ${group.isCurrent ? 'current' : ''}">
-          <div class="group-hdr">
-            <strong>${escape(headerName)}</strong>
-            <span class="meta">${fmt(groupSubtotal)} · ${allLinesForGroup.length} item${allLinesForGroup.length === 1 ? '' : 's'}</span>
-          </div>
-          ${linesHtml}
-          <div class="group-actions">
-            ${group.isCurrent
-              ? '<span class="meta" style="font-size:11px;color:#888;align-self:center;">(currently editing)</span>'
-              : `<button data-act="edit-config" data-session-id="${escape(group.sessionId)}">Edit</button>`
-            }
-            <button class="danger" data-act="remove-config" data-session-id="${escape(group.sessionId)}">Remove</button>
-          </div>
-        </div>
-      `;
-    })
-    .join('');
-
-  $body.html(groupsHtml);
-  $('#cart-drawer .total-amt').text(fmt(totalAmount));
-  $('#cart-drawer .checkout').prop('disabled', false);
+  $total.text(fmt(totalAmount));
 }
 
-function renderLine(line) {
+function buildGroup(group, i, lines, subtotal) {
+  const $g = $(groupTemplateHtml).removeAttr('data-cart-group-template').css('display', '');
+  $g.attr('data-current', group.isCurrent ? 'true' : 'false');
+
+  const colorOpt = group.bikeLine?.merchandise.selectedOptions?.find((o) => /colou?r/i.test(o.name));
+  const name = group.bikeLine
+    ? `Bike ${i + 1}${colorOpt ? ` — ${colorOpt.value}` : ''}`
+    : `Configuration ${i + 1}`;
+  $g.find('[data-group-name]').text(name);
+  $g.find('[data-group-meta]').text(
+    `${fmt(subtotal)} · ${lines.length} item${lines.length === 1 ? '' : 's'}`
+  );
+
+  // Edit button vs "currently editing" label
+  const $edit = $g.find('[data-group-edit]');
+  const $editing = $g.find('[data-group-editing]');
+  if (group.isCurrent) {
+    $edit.hide();
+    $editing.show();
+  } else {
+    $edit.show().attr('data-session-id', group.sessionId);
+    $editing.hide();
+  }
+  $g.find('[data-group-remove]').attr('data-session-id', group.sessionId);
+
+  // Lines — clone the nested line template per line
+  const $lineMount = $g.find('[data-group-lines]');
+  const $lineTpl = $lineMount.find('[data-cart-line-template]').first();
+  const lineHtml = $lineTpl.length ? $lineTpl[0].outerHTML : null;
+  $lineTpl.remove();
+  if (lineHtml) {
+    lines.forEach((line) => $lineMount.append(buildLine(line, lineHtml, line === group.bikeLine)));
+  }
+
+  return $g;
+}
+
+function buildLine(line, lineHtml, isBike) {
+  const $l = $(lineHtml).removeAttr('data-cart-line-template').css('display', '');
+
   const opts = (line.merchandise.selectedOptions || []).filter(
     (o) => o.value && o.value.toLowerCase() !== 'default title'
   );
   const optsText = opts.length ? opts.map((o) => o.value).join(' / ') : '';
   const img = line.merchandise.image?.url || '';
   const price = parseFloat(line.merchandise.price?.amount || 0) * (line.quantity || 1);
-
   const qtyLabel = (line.quantity || 1) > 1 ? `× ${line.quantity}` : '';
-  return `
-    <div class="line">
-      <img src="${escape(img)}" alt="" loading="lazy" />
-      <div class="title">
-        ${escape(line.merchandise.product.title)}
-        ${optsText ? `<span class="opts">${escape(optsText)}</span>` : ''}
-      </div>
-      <span class="qty-label">${qtyLabel}</span>
-      <span class="price">${fmt(price)}</span>
-      <button class="remove" data-act="remove-line" data-line-id="${escape(line.id)}" aria-label="Remove">×</button>
-    </div>
-  `;
+
+  const $img = $l.find('[data-line-img]');
+  if (img) $img.attr('src', img);
+  else $img.hide();
+
+  $l.find('[data-line-title]').text(line.merchandise.product.title);
+
+  const $opts = $l.find('[data-line-opts]');
+  if (optsText) $opts.text(optsText);
+  else $opts.hide();
+
+  $l.find('[data-line-qty]').text(qtyLabel);
+  $l.find('[data-line-price]').text(fmt(price));
+
+  // The bike is the core of the config — it can't be removed from the drawer.
+  // Drop its remove button and mark the line (style [data-line-locked] if wanted).
+  const $remove = $l.find('[data-act="remove-line"]');
+  if (isBike) {
+    $l.attr('data-line-locked', 'true');
+    $remove.remove();
+  } else {
+    $remove.attr('data-line-id', line.id);
+  }
+
+  return $l;
 }
 
 function fmt(amount) {
   return `$${amount.toFixed(2)}`;
-}
-
-function escape(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }

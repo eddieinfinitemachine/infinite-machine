@@ -6,7 +6,7 @@ import { onSelectionChange } from '../lib/selection.js';
 // currently-active config's price.
 //
 // Targets:
-//   [data-total-block] [sf-show-price="with-sub-product"]
+//   [data-total-block] [data-price]
 //   [data-deposit-price="full"]
 //
 // Both expect the same value — the live total of the current config's
@@ -33,7 +33,7 @@ export function initPriceDisplay() {
 
     const formatted = formatMoney(total, currencyCode);
 
-    $('[data-total-block] [sf-show-price="with-sub-product"]').text(formatted);
+    $('[data-total-block] [data-price]').text(formatted);
     $('[data-deposit-price="full"]').text(formatted);
   });
 }
