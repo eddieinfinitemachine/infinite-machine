@@ -1,61 +1,51 @@
 import $ from '../lib/jquery.js';
 
-// Instruction-video preview for accessories. Drives the page's
-// [data-bunny-lightbox-init] player DIRECTLY (no Osmo JS). Each accessory card has
-// one always-visible play trigger ([data-step="acs-play"]):
-//   - Desktop: HOVER the trigger → the MUTED, looping HLS clip plays in the player,
-//     floated slightly ABOVE the trigger. A grace-delay bridge keeps it open while
-//     the cursor moves from the trigger up into the player so controls stay reachable.
-//   - Touch: TAP the trigger → the player opens centered in the viewport; tap the
-//     same trigger again, or anywhere outside, to dismiss.
-// Audio toggles via [data-player-control="mute"] or by clicking the video itself
-// (preference persists across opens).
+// Click-to-open instruction-video MODAL for accessories. Same behavior on desktop
+// and touch: click an accessory's play trigger → the modal opens and plays the
+// clip WITH SOUND (the click is a user gesture, so unmuted autoplay is allowed;
+// we fall back to muted only if a browser blocks it). The modal shows the
+// accessory name and closes on the close button, ESC, or any click OUTSIDE the
+// player. No hover, no positioning — it's a plain modal styled in Webflow.
 //
-// Markup (Webflow, built from the Osmo lightbox structure — classes checkout_vid*):
-//   [data-bunny-lightbox-status]                 wrapper — we toggle active/not-active
-//     [data-bunny-lightbox-init]                 player — we set [data-player-muted] for the icon
-//       <video class="checkout_vid-player_video">
-//       [data-player-control="mute"]             mute toggle (icon CSS keys on data-player-muted)
-//   [data-accessory-handle] [data-step="acs-play"]  the hover/tap trigger on each card
+// Markup (Webflow):
+//   [data-bunny-lightbox-status]            modal wrapper — we toggle active/not-active
+//     [data-bunny-lightbox-title]           filled with the accessory name
+//     [data-bunny-lightbox-init]            .checkout_vid-player — the player
+//       <video>
+//       [data-player-control="mute"]        mute toggle ([data-player-muted] drives the icon)
+//     [data-bunny-lightbox-close]           close button (anything outside the player closes)
+//   [data-accessory-handle] [data-step="acs-play"]  the per-card trigger
 //
-// Show/hide is CSS off [data-bunny-lightbox-status]: not-active = hidden,
-// active = shown. (Style this in Webflow and drop the temporary inline
-// display:none — the status attribute is the switch.)
-//
-// Video URL = Shopify metafield custom.instruction_video (product.instructionVideo),
-// a Bunny .m3u8 HLS playlist. Needs hls.js (window.Hls) on the page; Safari plays
-// HLS natively without it.
-
-const HIDE_DELAY = 350; // ms grace before hiding after leaving a trigger
-const SHOW_DELAY = 120; // ms hover-intent before loading a trigger's clip
+// The play trigger is shown only on accessories whose custom.instruction_video
+// metafield is filled. Video URL = product.instructionVideo (Bunny .m3u8).
+// Needs hls.js (window.Hls); Safari plays HLS natively without it.
 
 export function initAccessoryVideo(config, products) {
   if (!products.accessories?.length) return;
 
-  const player = document.querySelector('[data-bunny-lightbox-init]');
-  const wrapper = player?.closest('[data-bunny-lightbox-status]');
+  const wrapper = document.querySelector('[data-bunny-lightbox-status]');
+  const player = wrapper?.querySelector('[data-bunny-lightbox-init]');
   const video = player?.querySelector('video');
-  if (!player || !wrapper || !video) {
-    console.warn('[AccessoryVideo] No [data-bunny-lightbox-init] player on page — preview disabled');
+  if (!wrapper || !player || !video) {
+    console.warn('[AccessoryVideo] No [data-bunny-lightbox-status] modal on page — video disabled');
     return;
   }
 
-  // handle → HLS url. Falls back to config.testInstructionVideo (TEMP) so every
-  // accessory previews during testing before the real metafields are uploaded.
+  // handle → { url, title }. Falls back to config.testInstructionVideo (TEMP) for
+  // the clip CONTENT during testing.
   const fallback = config.testInstructionVideo || null;
   const byHandle = new Map();
   for (const p of products.accessories) {
     const url = p.instructionVideo || fallback;
-    if (url) byHandle.set(p.handle, url);
+    if (url) byHandle.set(p.handle, { url, title: p.title });
   }
   if (!byHandle.size) {
     console.log('[AccessoryVideo] No accessories have an instruction video — nothing to wire');
     return;
   }
 
-  // Show the play trigger ONLY on accessories whose instruction-video metafield
-  // (custom.instruction_video) is actually filled — keyed on the REAL metafield,
-  // not the test fallback, so items without a video hide their trigger.
+  // Show the play trigger ONLY on accessories whose REAL metafield is filled
+  // (not the test fallback) — items without a video hide their trigger.
   const withMetafield = new Set(
     products.accessories.filter((p) => p.instructionVideo).map((p) => p.handle)
   );
@@ -66,8 +56,8 @@ export function initAccessoryVideo(config, products) {
     });
   });
 
-  // HLS source loading: Safari plays .m3u8 natively; elsewhere attach hls.js
-  // once and swap sources via loadSource on each hover.
+  // HLS source loading: Safari plays .m3u8 natively; elsewhere attach hls.js once
+  // and swap sources via loadSource.
   const isSafariNative = !!video.canPlayType('application/vnd.apple.mpegurl');
   const canUseHls = !isSafariNative && !!(window.Hls && window.Hls.isSupported());
   let hls = null;
@@ -76,7 +66,7 @@ export function initAccessoryVideo(config, products) {
       video.src = url;
     } else if (canUseHls) {
       if (!hls) {
-        hls = new window.Hls({ maxBufferLength: 10 });
+        hls = new window.Hls({ maxBufferLength: 30 });
         hls.attachMedia(video);
       }
       hls.loadSource(url);
@@ -85,223 +75,89 @@ export function initAccessoryVideo(config, products) {
     }
   };
 
-  // Reflect mute state onto the player so the existing icon CSS
-  // ([data-player-muted="true"]) toggles between the volume-up / mute SVGs.
+  // Reflect mute state onto the player so the icon CSS ([data-player-muted]) flips.
   const setMuted = (m) => {
     video.muted = m;
     player.setAttribute('data-player-muted', m ? 'true' : 'false');
   };
 
-  let hideTimer = null;
-  let showTimer = null; // hover-intent debounce before committing to a clip
-  let currentHandle = null;
-  let currentUrl = null; // currently-loaded source (skip reload when unchanged)
-  let currentTrigger = null; // the play trigger the video is anchored to (for resize)
-  let pendingHandle = null; // handle we're loading / about to show
-  let loadGen = 0; // increments per load; stale (superseded) reveals are ignored
-  let readyListener = null;
-  let wantsAudio = false; // persists once the user unmutes
-
-  // Touch devices (no hover): tap the play trigger to open, video centered, tap
-  // outside to dismiss. Desktop: hover the play trigger, video slightly above it.
-  const isTouch = () => window.matchMedia('(hover: none)').matches;
-
-  // Desktop: float the player just ABOVE the play trigger, horizontally centered
-  // on it, clamped into the viewport. Fixed positioning so it works regardless of
-  // DOM nesting.
-  const GAP = 10; // px between the player's bottom and the trigger's top
-  const positionAboveTrigger = (triggerEl) => {
-    const t = triggerEl.getBoundingClientRect();
-    const w = wrapper.offsetWidth;
-    const h = wrapper.offsetHeight;
-    let left = t.left + t.width / 2 - w / 2; // centered on the trigger
-    let top = t.top - h - GAP; // above the trigger
-    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
-    top = Math.max(8, top);
-    wrapper.style.position = 'fixed';
-    wrapper.style.transform = '';
-    wrapper.style.left = `${Math.round(left)}px`;
-    wrapper.style.top = `${Math.round(top)}px`;
+  // Super-basic progress bar. Uses a Webflow-provided [data-video-progress] fill
+  // if present (style it yourself); otherwise injects a minimal bar pinned to the
+  // bottom of the player. Read-only — just shows how far along the clip is.
+  let $progress = $(player).find('[data-video-progress]').first();
+  if (!$progress.length) {
+    const $track = $(
+      '<div data-video-timeline style="position:absolute;left:0;right:0;bottom:0;height:3px;' +
+        'background:rgba(255,255,255,.25);z-index:5;pointer-events:none;"></div>'
+    );
+    $progress = $('<div data-video-progress style="height:100%;width:0%;background:#fff;transition:width .1s linear;"></div>');
+    $track.append($progress);
+    $(player).append($track);
+  }
+  const updateProgress = () => {
+    $progress.css('width', (video.duration ? (video.currentTime / video.duration) * 100 : 0) + '%');
   };
+  video.addEventListener('timeupdate', updateProgress);
 
-  // Touch: dead-center in the viewport.
-  const centerInViewport = () => {
-    wrapper.style.position = 'fixed';
-    wrapper.style.left = '50%';
-    wrapper.style.top = '50%';
-    wrapper.style.transform = 'translate(-50%, -50%)';
-  };
+  const isOpen = () => wrapper.getAttribute('data-bunny-lightbox-status') === 'active';
 
-  const place = (triggerEl) => (isTouch() ? centerInViewport() : positionAboveTrigger(triggerEl));
-
-  const clearReady = () => {
-    if (readyListener) {
-      video.removeEventListener('loadeddata', readyListener);
-      readyListener = null;
-    }
-  };
-
-  // Position + activate the player for triggerEl. Fresh opens snap into place;
-  // moving while already open lets the CSS left/top transition slide A → B.
-  const reveal = (triggerEl) => {
-    const wasActive = wrapper.getAttribute('data-bunny-lightbox-status') === 'active';
-    currentTrigger = triggerEl;
-    if (wasActive) {
-      place(triggerEl);
-    } else {
-      const prev = wrapper.style.transition;
-      wrapper.style.transition = 'none';
-      place(triggerEl);
-      void wrapper.offsetWidth; // reflow to lock the start position
-      wrapper.style.transition = prev;
-    }
-    wrapper.setAttribute('data-bunny-lightbox-status', 'active');
-  };
-
-  // Load the clip, then reveal/move ONLY once it has a frame — so we never show
-  // (or slide into) an empty player while the new HLS is still loading. If the
-  // source is unchanged (e.g. same shared clip), skip the reload entirely.
-  const commit = (triggerEl, handle, url) => {
-    if (url === currentUrl) {
-      currentHandle = handle;
-      video.play?.().catch(() => {});
-      reveal(triggerEl);
-      return;
-    }
-    const gen = ++loadGen;
-    clearReady();
-    loadSource(url);
-    currentUrl = url;
-    setMuted(!wantsAudio);
-    let readyFallback;
-    const onReady = () => {
-      clearReady();
-      clearTimeout(readyFallback);
-      if (gen !== loadGen) return; // superseded by a newer hover, or hidden
-      currentHandle = handle;
-      video.play?.().catch(() => {});
-      reveal(triggerEl);
-    };
-    readyListener = onReady;
-    video.addEventListener('loadeddata', onReady);
-    readyFallback = setTimeout(onReady, 2500); // safety: reveal anyway if the event never fires
-  };
-
-  // `triggerEl` is the [data-step="acs-play"] element. `immediate` (touch tap)
-  // skips the hover-intent debounce.
-  const show = (triggerEl, immediate) => {
+  const open = (triggerEl) => {
     const card = triggerEl.closest('[data-accessory-handle]');
     if (!card) return;
-    const handle = card.getAttribute('data-accessory-handle');
-    const url = byHandle.get(handle);
-    if (!url) return; // no clip → leave the player as-is
-    clearTimeout(hideTimer);
-    clearTimeout(showTimer);
-    pendingHandle = handle;
-    if (immediate) {
-      commit(triggerEl, handle, url);
-    } else {
-      showTimer = setTimeout(() => {
-        if (pendingHandle === handle) commit(triggerEl, handle, url);
-      }, SHOW_DELAY);
+    const entry = byHandle.get(card.getAttribute('data-accessory-handle'));
+    if (!entry) return;
+
+    wrapper.querySelectorAll('[data-bunny-lightbox-title]').forEach((el) => {
+      el.textContent = entry.title;
+    });
+    loadSource(entry.url);
+    setMuted(false); // sound by default — the click is a user gesture
+    $progress.css('width', '0%'); // reset the bar for the new clip
+    wrapper.setAttribute('data-bunny-lightbox-status', 'active');
+
+    // play() is called within the click's call stack, so user activation allows
+    // unmuted playback. If a browser still blocks it, fall back to muted.
+    const p = video.play?.();
+    if (p && typeof p.then === 'function') {
+      p.catch(() => {
+        setMuted(true);
+        video.play?.().catch(() => {});
+      });
     }
   };
 
-  const hide = () => {
-    clearTimeout(showTimer);
-    clearReady();
-    loadGen++; // invalidate any in-flight reveal
-    pendingHandle = null;
+  const close = () => {
     wrapper.setAttribute('data-bunny-lightbox-status', 'not-active');
     video.pause?.();
-    currentHandle = null;
-    currentTrigger = null;
   };
 
-  // Reposition on resize while the player is open. Width-only filter — mobile
-  // scroll changes viewport height and must not retrigger layout logic.
-  let lastWidth = window.innerWidth;
-  window.addEventListener('resize', () => {
-    if (window.innerWidth === lastWidth) return;
-    lastWidth = window.innerWidth;
-    if (currentTrigger && wrapper.getAttribute('data-bunny-lightbox-status') === 'active') {
-      place(currentTrigger);
+  // Auto-close when the clip finishes (open() reloads the source, so the next
+  // open starts from the beginning).
+  video.addEventListener('ended', close);
+
+  // Open on clicking a play trigger — identical on desktop and touch.
+  $(document).on('click.accVideo', '[data-accessory-handle] [data-step="acs-play"]', function (e) {
+    e.preventDefault();
+    open(this);
+  });
+
+  // Inside the modal: the mute control toggles audio; anything OUTSIDE the player
+  // (backdrop, title, close button) closes it.
+  $(wrapper).on('click.accVideo', (e) => {
+    if (player.contains(e.target)) {
+      const muteBtn = e.target.closest('[data-player-control="mute"]');
+      if (muteBtn) {
+        e.preventDefault();
+        setMuted(!video.muted);
+        if (!video.muted) video.play?.().catch(() => {});
+      }
+      return; // other clicks inside the player do nothing (don't close)
     }
+    close();
   });
 
-  const scheduleHide = () => {
-    clearTimeout(hideTimer);
-    hideTimer = setTimeout(hide, HIDE_DELAY);
-  };
-
-  // Desktop hover: show on entering a play trigger (debounced intent), hide after
-  // a grace delay on leaving it. The player bridge keeps it open while you move up
-  // into the video. Entering any trigger cancels a pending hide, so moving A → B
-  // within HIDE_DELAY keeps the player alive and lets it slide across.
-  $(document)
-    .on('mouseenter.accVideo', '[data-accessory-handle] [data-step="acs-play"]', function () {
-      if (isTouch()) return;
-      show(this, false);
-    })
-    .on('mouseleave.accVideo', '[data-accessory-handle] [data-step="acs-play"]', () => {
-      if (isTouch()) return;
-      clearTimeout(showTimer); // cancel a not-yet-committed open
-      pendingHandle = null;
-      scheduleHide();
-    });
-
-  // Player hover is the bridge: entering cancels the pending hide so you can move
-  // from a trigger up into the video without it closing.
-  $(wrapper)
-    .on('mouseenter.accVideo', () => clearTimeout(hideTimer))
-    .on('mouseleave.accVideo', scheduleHide);
-
-  // Close on ANY scroll — the page OR the inner accessories list (overflow:auto).
-  // A trigger-anchored floating player goes stale the instant things move.
-  const closeOnScroll = () => {
-    clearTimeout(showTimer);
-    pendingHandle = null;
-    if (wrapper.getAttribute('data-bunny-lightbox-status') === 'active') hide();
-  };
-  window.addEventListener('scroll', closeOnScroll, { passive: true });
-  const scrollZone = document.querySelector('.checkout_accessories-wrap');
-  if (scrollZone) scrollZone.addEventListener('scroll', closeOnScroll, { passive: true });
-
-  // Touch tap → open/close the video (gated to no-hover devices). Tapping the
-  // same card's trigger again closes it (no hover-out on touch).
-  $(document).on('click.accVideo', '[data-step="acs-play"]', function (e) {
-    if (!isTouch()) return;
-    const card = this.closest('[data-accessory-handle]');
-    if (!card) return;
-    e.preventDefault();
-    const handle = card.getAttribute('data-accessory-handle');
-    const openForThis =
-      currentHandle === handle && wrapper.getAttribute('data-bunny-lightbox-status') === 'active';
-    if (openForThis) hide();
-    else show(this, true);
-  });
-
-  // Touch: tap anywhere outside the player (and not on a play icon) dismisses it.
-  $(document).on('click.accVideo', (e) => {
-    if (!isTouch()) return;
-    if (wrapper.getAttribute('data-bunny-lightbox-status') !== 'active') return;
-    if (wrapper.contains(e.target)) return; // inside the player → keep open
-    if (e.target.closest('[data-step="acs-play"]')) return; // the toggle handles itself
-    hide();
-  });
-
-  // Mute toggle — via the dedicated control OR by clicking the video itself.
-  const toggleMute = () => {
-    wantsAudio = video.muted; // currently muted → user wants audio on
-    setMuted(!wantsAudio);
-    if (!video.muted) video.play?.().catch(() => {});
-  };
-  $(player).on('click.accVideo', '[data-player-control="mute"]', (e) => {
-    e.preventDefault();
-    toggleMute();
-  });
-  $(video).on('click.accVideo', (e) => {
-    e.preventDefault();
-    toggleMute();
+  // ESC closes the modal.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOpen()) close();
   });
 }
