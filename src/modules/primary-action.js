@@ -45,7 +45,6 @@ export function initPrimaryAction() {
   $btn.on('click', (e) => {
     e.preventDefault();
     const state = currentState();
-    console.log('[PrimaryAction] click → state:', state, '| region:', getCurrentRegion(), '| payment:', currentPayment);
     if (state === 'checkout') openCartDrawer();
     else if (state === 'save') submitForm('#wf-form-Olto-Save-Form');
     else submitForm('#wf-form-Olto-Interest-Form');

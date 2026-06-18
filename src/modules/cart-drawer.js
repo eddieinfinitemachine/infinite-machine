@@ -64,7 +64,6 @@ export function initCartDrawer(config) {
   } else {
     console.warn('[CartDrawer] No [data-cart-group-template] — groups will not render');
   }
-  console.log('[CartDrawer] init OK — drawer found, group template:', $tpl.length ? 'cached' : 'MISSING');
 
   setState(drawer, 'closed');
   $(drawer).on('click', '[data-act]', handleClick);
@@ -80,12 +79,7 @@ function setState(drawer, state) {
 
 export function openCartDrawer() {
   const drawer = document.querySelector('[data-cart-drawer]');
-  if (!drawer) {
-    console.warn('[CartDrawer] openCartDrawer: no [data-cart-drawer] found — nothing to open');
-    return;
-  }
-  console.log('[CartDrawer] openCartDrawer → setting data-cart-state="open" on', drawer);
-  setState(drawer, 'open');
+  if (drawer) setState(drawer, 'open');
 }
 
 function close() {

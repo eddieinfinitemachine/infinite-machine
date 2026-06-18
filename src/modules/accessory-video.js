@@ -90,14 +90,27 @@ export function initAccessoryVideo(config, products) {
       '<div data-video-timeline style="position:absolute;left:0;right:0;bottom:0;height:3px;' +
         'background:rgba(255,255,255,.25);z-index:5;pointer-events:none;"></div>'
     );
-    $progress = $('<div data-video-progress style="height:100%;width:0%;background:#fff;transition:width .1s linear;"></div>');
+    $progress = $('<div data-video-progress style="height:100%;width:0%;background:#fff;"></div>');
     $track.append($progress);
     $(player).append($track);
   }
+  // Drive the fill every animation frame while playing (not on the ~4Hz
+  // timeupdate event) so it moves smoothly instead of jumping. Don't put a
+  // CSS transition on the fill — the per-frame update already makes it smooth.
   const updateProgress = () => {
     $progress.css('width', (video.duration ? (video.currentTime / video.duration) * 100 : 0) + '%');
   };
-  video.addEventListener('timeupdate', updateProgress);
+  let rafId = null;
+  const runProgress = () => {
+    updateProgress();
+    if (!video.paused && !video.ended) rafId = requestAnimationFrame(runProgress);
+  };
+  video.addEventListener('play', () => {
+    cancelAnimationFrame(rafId);
+    runProgress();
+  });
+  video.addEventListener('pause', () => cancelAnimationFrame(rafId));
+  video.addEventListener('ended', () => cancelAnimationFrame(rafId));
 
   const isOpen = () => wrapper.getAttribute('data-bunny-lightbox-status') === 'active';
 
