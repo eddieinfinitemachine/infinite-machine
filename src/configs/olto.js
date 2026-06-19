@@ -16,12 +16,13 @@ export default {
   //   validation  — show the "Response Required" line in the head (location/forms)
   //   startOpen   — expand this step on load instead of collapsed
   steps: [
-    { type: 'location', no: '01', title: 'Location', validation: true, startOpen: true },
+    { type: 'location', no: '01', title: 'Location', validation: true, collapsible: false },
     { type: 'variant', no: '02', title: 'Base' },
     { type: 'wrap', no: '03', title: 'Wrap' },
     { type: 'bundle', no: '04', title: 'Accessory Pack' },
     { type: 'accessories', no: '05', title: 'Configure your Accessories' },
     { type: 'quantity', no: '06', title: 'Quantity' },
+    { type: 'payment', no: '07', title: 'Payment', startOpen: true },
   ],
 
   // Main product (queried by handle, not ID — handles survive product re-creation)

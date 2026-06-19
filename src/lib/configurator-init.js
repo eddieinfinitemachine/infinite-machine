@@ -15,10 +15,10 @@ import { initMainProductCart } from '../modules/main-product-cart.js';
 import { bindUi } from '../modules/ui-bindings.js';
 import { initFilters } from '../modules/filters.js';
 import { initCartDrawer } from '../modules/cart-drawer.js';
+import { initConfigReset } from '../modules/config-reset.js';
 import { initConfigQuantity } from '../modules/config-quantity.js';
 import { initPriceDisplay } from '../modules/price-display.js';
 import { initPrimaryAction } from '../modules/primary-action.js';
-import { initDebugPanel } from '../modules/debug-panel.js';
 
 import { fetchProducts } from './products.js';
 import { fetchBundles } from './bundles.js';
@@ -36,6 +36,33 @@ function forceRevealBaseSection() {
   $('.checkout_includes-item, .modal_ecl-image').css({ opacity: 1 });
 }
 
+// Webflow binds its AJAX submit handler to the forms present when its `forms`
+// module initialises. buildFlow injects the interest/location forms at runtime,
+// which can land before OR after that init — when it lands after, the form misses
+// the handler and falls back to a native GET submit (page reloads with the data
+// in the URL). Re-running the forms module after injection binds them regardless
+// of order. Standard fix for dynamically-inserted Webflow forms.
+function bindWebflowForms() {
+  const wf = window.Webflow;
+  if (!wf) return;
+  let retried = false;
+  const run = () => {
+    let forms;
+    try {
+      forms = wf.require('forms');
+    } catch (err) {
+      forms = null;
+    }
+    if (forms && typeof forms.ready === 'function') {
+      forms.ready();
+    } else if (!retried && typeof wf.push === 'function') {
+      retried = true;
+      wf.push(run); // Webflow core not ready yet — run once it is
+    }
+  };
+  run();
+}
+
 export async function initConfigurator(config) {
   console.log(`[Configurator] Booting "${config.id}"`);
 
@@ -45,6 +72,11 @@ export async function initConfigurator(config) {
   // Generates the DOM (mounts + template atoms) that every module below queries,
   // so location-flow, accordions, form-validation etc. find what they expect.
   buildFlow(config);
+
+  // Bind Webflow's AJAX form handler to the just-injected forms (otherwise they
+  // can fall back to a native GET submit that reloads the page with the data in
+  // the URL — intermittently, depending on init order).
+  bindWebflowForms();
 
   // --- Pure DOM (no Shopify dep) ---
   // (Step accordions are wired per-step inside buildFlow.)
@@ -103,6 +135,7 @@ export async function initConfigurator(config) {
   if (config.bundles) initBundlesUi(config, products, bundles);
   if (config.wrap) initWrapOrchestration(config, products);
   initCartDrawer(config);
+  initConfigReset();
   initConfigQuantity();
   initPriceDisplay();
   initPrimaryAction();
@@ -119,8 +152,4 @@ export async function initConfigurator(config) {
   $('.checkout_product-load').hide();
 
   console.log(`[Configurator] "${config.id}" boot complete`);
-
-  // Floating debug panel (cart state, selection, reset button).
-  // Remove this line to disable.
-  initDebugPanel({ configId: config.id });
 }

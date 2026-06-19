@@ -14,7 +14,9 @@ const REQUIRED_SELECTOR =
 const BUTTON_SELECTORS = '[primary-action], [buy-button], [deposit-button], [form-button]';
 
 export function initFormValidation() {
-  $(document).on('change', REQUIRED_SELECTOR, checkAllRequired);
+  // `input` re-checks live as the user types (so Submit enables the moment the
+  // email is valid); `change` covers selects / blur.
+  $(document).on('input change', REQUIRED_SELECTOR, checkAllRequired);
   // Run once so disabled state is correct on initial render
   checkAllRequired();
 }
@@ -37,6 +39,29 @@ export function checkAllRequired() {
   });
 
   allowButtons(allValid);
+  return allValid;
+}
+
+// Scroll to (and focus) the first visible required field that's empty, so the
+// user sees exactly what's missing when they try to submit/checkout.
+export function scrollToFirstInvalid() {
+  let $first = null;
+  $(REQUIRED_SELECTOR).each(function () {
+    const $input = $(this);
+    if (!$input.val() || $input.val().trim() === '') {
+      $first = $input;
+      return false; // break out of .each
+    }
+  });
+  if (!$first || !$first.length) return false;
+  const target = $first.closest('[step-block]').get(0) || $first.get(0);
+  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  try {
+    $first.trigger('focus');
+  } catch (err) {
+    /* noop */
+  }
+  return true;
 }
 
 function showValidation($el) {

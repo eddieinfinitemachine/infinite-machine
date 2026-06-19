@@ -95,11 +95,14 @@ function buildStep(step, kit) {
     case 'quantity':
       $built = buildQuantity(step, kit, $block);
       break;
+    case 'payment':
+      $built = buildPayment(step, kit, $block);
+      break;
     default:
       console.warn(`[Flow] Unknown step type "${step.type}" — skipped`);
       return null;
   }
-  if ($built) wireAccordion($built, step);
+  if ($built && step.collapsible !== false) wireAccordion($built, step);
   return $built;
 }
 
@@ -124,9 +127,10 @@ function buildHead(step, kit) {
   $head.find('[data-step="step"]').text(step.no || '');
   $head.find('[data-step="title"]').text(step.title || '');
 
-  // Keep the chevron (always visible, rotated by the accordion); drop the
-  // "Expand" text inside the expander.
+  // Keep the chevron (rotated by the accordion); drop the "Expand" text. Steps
+  // marked collapsible:false lose the chevron entirely (always open, no toggle).
   $head.find('[data-step="expander"]').find('p').remove();
+  if (step.collapsible === false) $head.find('[data-step="expander"]').remove();
 
   // The quantity stepper never lives in the head — the quantity step puts it in
   // its own collapsible content. Always strip it from the head.
@@ -218,6 +222,35 @@ function buildAccessories(step, kit, $block) {
   $content.append($wrap);
 
   $block.append($content);
+  return $block;
+}
+
+function buildPayment(step, kit, $block) {
+  // US-only step (region-gated by location-flow via [payment-block]). Built like
+  // the base/color step from the generic option atom: two choices inside a
+  // [data-option-group="payment"] that primary-action.js reads. Hidden by default.
+  // The inner wrapper keeps head + options stacked even when location-flow reveals
+  // the block with display:flex.
+  $block.attr('payment-block', '').css({ display: 'none', opacity: 0 });
+  const $inner = $('<div class="max-width-full"></div>');
+  $inner.append(buildHead(step, kit));
+
+  const $group = $('<div data-option-group="payment" class="checkout_option-wrapper"></div>');
+  [
+    { value: 'full', label: 'Pay in Full' },
+    { value: 'deposit', label: 'Save your configuration' },
+  ].forEach((opt, i) => {
+    const $o = clone(kit, 'option').attr('data-option-value', opt.value);
+    $o.find('.checkout_option-swatch').remove(); // no colour swatch for payment
+    $o.find('.checkout_option-text').first().text(opt.label);
+    if (i === 0) $o.addClass('sf-active'); // default → Pay in Full
+    $group.append($o);
+  });
+
+  const $selectors = $('<div class="checkout_option-selectors" data-step-content></div>');
+  $selectors.append($group);
+  $inner.append($selectors);
+  $block.append($inner);
   return $block;
 }
 

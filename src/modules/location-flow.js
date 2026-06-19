@@ -136,13 +136,15 @@ function locationFlow($select) {
   regionChangeHandlers.forEach((h) => h({ region: currentRegion, country: currentCountry }));
 }
 
-// Two flows only, gated by region:
-//   US (+ Canada) → Full Payment — configure → bottom-bar checkout → Shopify
-//   Rest of world → Register Your Interest — the [form-block] email capture
-// Button text/click behavior is owned by modules/primary-action.js; this only
-// toggles the interest form's visibility.
+// Region gate:
+//   US (+ Canada) → show the Payment step ([payment-block]); the user picks
+//     "Pay in Full" (→ checkout) or "Save your configuration" (→ interest form).
+//   Rest of world → hide Payment; they go straight to Register Your Interest.
+// The Payment step's form/total visibility + button behavior is owned by
+// modules/primary-action.js (it subscribes to region changes); this only toggles
+// the Payment block.
 function applyFlowForRegion(region) {
-  const $formBlock = $('[form-block]');
-  if (region === 'us') hideItem($formBlock);
-  else revealItem($formBlock);
+  const $paymentBlock = $('[payment-block]');
+  if (region === 'us') revealItem($paymentBlock);
+  else hideItem($paymentBlock);
 }
