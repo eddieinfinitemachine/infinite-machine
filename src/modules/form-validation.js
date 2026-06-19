@@ -11,31 +11,46 @@ const REQUIRED_SELECTOR =
 // Buttons that get enabled/disabled based on validation state.
 // [primary-action] is the unified bottom-bar button (current design).
 // Older selectors kept for backwards compat with pages that still use them.
-const BUTTON_SELECTORS = '[primary-action], [buy-button], [deposit-button], [form-button]';
+const BUTTON_SELECTORS = '[primary-action], [data-submit-btn], [buy-button], [deposit-button], [form-button]';
 
 export function initFormValidation() {
   // `input` re-checks live as the user types (so Submit enables the moment the
-  // email is valid); `change` covers selects / blur.
-  $(document).on('input change', REQUIRED_SELECTOR, checkAllRequired);
+  // email is valid); `change` covers selects / blur. Wrapped so the jQuery event
+  // object isn't passed as `arm` (which would prematurely arm error marks).
+  $(document).on('input change', REQUIRED_SELECTOR, () => checkAllRequired());
   // Run once so disabled state is correct on initial render
   checkAllRequired();
 }
 
+// Error marks (is-error + the "Response Required" line) are only shown AFTER the
+// user first tries to submit — not on load / while typing. The button's disabled
+// state still tracks validity from the start. Pass `arm = true` (from the submit
+// click) to turn error marks on; once armed they update live.
+let errorsArmed = false;
+
 // Exported so other modules (e.g. flow handlers) can re-check after
 // programmatically changing input values
-export function checkAllRequired() {
+export function checkAllRequired(arm) {
+  if (arm) errorsArmed = true;
   let allValid = true;
 
   $(REQUIRED_SELECTOR).each(function () {
     const $input = $(this);
-    const $stepBlockHead = $input.closest('[step-block]').find('[option-head]');
+    // Exclude the save head — its [field-validation] is a permanent subtitle
+    // ("Save your configurator"), not an error line to toggle.
+    const $stepBlockHead = $input
+      .closest('[step-block]')
+      .find('[option-head]')
+      .not('[option-head="save"]');
+    const empty = !$input.val() || $input.val().trim() === '';
 
-    if (!$input.val() || $input.val().trim() === '') {
-      showValidation($stepBlockHead);
+    if (empty) {
       allValid = false;
-      return;
+      if (errorsArmed) showValidation($stepBlockHead);
+      else hideValidation($stepBlockHead);
+    } else {
+      hideValidation($stepBlockHead);
     }
-    hideValidation($stepBlockHead);
   });
 
   allowButtons(allValid);

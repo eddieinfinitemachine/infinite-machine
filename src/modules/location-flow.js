@@ -136,15 +136,8 @@ function locationFlow($select) {
   regionChangeHandlers.forEach((h) => h({ region: currentRegion, country: currentCountry }));
 }
 
-// Region gate:
-//   US (+ Canada) → show the Payment step ([payment-block]); the user picks
-//     "Pay in Full" (→ checkout) or "Save your configuration" (→ interest form).
-//   Rest of world → hide Payment; they go straight to Register Your Interest.
-// The Payment step's form/total visibility + button behavior is owned by
-// modules/primary-action.js (it subscribes to region changes); this only toggles
-// the Payment block.
-function applyFlowForRegion(region) {
-  const $paymentBlock = $('[payment-block]');
-  if (region === 'us') revealItem($paymentBlock);
-  else hideItem($paymentBlock);
-}
+// The interest/save form is always present as the last step. Its head swap and
+// expand state per region are owned by modules/primary-action.js (it subscribes
+// to region changes via onRegionChange), so there's nothing flow-specific to
+// toggle here.
+function applyFlowForRegion() {}

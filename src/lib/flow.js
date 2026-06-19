@@ -63,9 +63,10 @@ export function buildFlow(config) {
   if ($actions.length) buildActions(kit, $actions);
   else console.warn('[Flow] No [data-flow="actions"] mount — bottom bar not built');
 
-  // Loader (hidden; configurator-init hides .checkout_product-load at boot-end)
+  // Loader — SHOW it during boot (clear the kit atom's inline display:none);
+  // configurator-init hides .checkout_product-load once boot completes.
   const $loader = clone(kit, 'loader');
-  if ($loader.length) $steps.append($loader.hide());
+  if ($loader.length) $steps.append($loader.css('display', ''));
 
   // Kit was already detached above — nothing left to clean up.
   console.log(`[Flow] Built ${(config.steps || []).length} steps from config`);
@@ -94,9 +95,6 @@ function buildStep(step, kit) {
       break;
     case 'quantity':
       $built = buildQuantity(step, kit, $block);
-      break;
-    case 'payment':
-      $built = buildPayment(step, kit, $block);
       break;
     default:
       console.warn(`[Flow] Unknown step type "${step.type}" — skipped`);
@@ -225,35 +223,6 @@ function buildAccessories(step, kit, $block) {
   return $block;
 }
 
-function buildPayment(step, kit, $block) {
-  // US-only step (region-gated by location-flow via [payment-block]). Built like
-  // the base/color step from the generic option atom: two choices inside a
-  // [data-option-group="payment"] that primary-action.js reads. Hidden by default.
-  // The inner wrapper keeps head + options stacked even when location-flow reveals
-  // the block with display:flex.
-  $block.attr('payment-block', '').css({ display: 'none', opacity: 0 });
-  const $inner = $('<div class="max-width-full"></div>');
-  $inner.append(buildHead(step, kit));
-
-  const $group = $('<div data-option-group="payment" class="checkout_option-wrapper"></div>');
-  [
-    { value: 'full', label: 'Pay in Full' },
-    { value: 'deposit', label: 'Save your configuration' },
-  ].forEach((opt, i) => {
-    const $o = clone(kit, 'option').attr('data-option-value', opt.value);
-    $o.find('.checkout_option-swatch').remove(); // no colour swatch for payment
-    $o.find('.checkout_option-text').first().text(opt.label);
-    if (i === 0) $o.addClass('sf-active'); // default → Pay in Full
-    $group.append($o);
-  });
-
-  const $selectors = $('<div class="checkout_option-selectors" data-step-content></div>');
-  $selectors.append($group);
-  $inner.append($selectors);
-  $block.append($inner);
-  return $block;
-}
-
 function buildQuantity(step, kit, $block) {
   // Quantity is NOT collapsible — the −/+ stepper stays inline with the title,
   // like a plain header. No chevron, no [data-step-content] (so wireAccordion
@@ -272,9 +241,11 @@ function buildQuantity(step, kit, $block) {
 function buildInterestForm(kit) {
   const $form = clone(kit, 'interest-form');
   if (!$form.length) return null;
-  // [form-block] is toggled by location-flow; primary-action submits the inner
-  // #wf-form-Olto-Interest-Form via its [data-form-button].
-  $form.attr({ 'step-block': '', 'form-block': '' }).css({ display: 'none', opacity: 0 });
+  // Always-visible LAST step. primary-action.js turns it into a collapsible step
+  // (save head + chevron), swaps the head/expand per region, and submits the
+  // inner #wf-form-Olto-Interest-Form via its [data-form-button]. primary-action
+  // forces display:flex/opacity:1 on [form-block] after all setup.
+  $form.attr({ 'step-block': '', 'form-block': '' });
   return $form;
 }
 

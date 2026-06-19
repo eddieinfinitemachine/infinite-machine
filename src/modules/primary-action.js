@@ -3,26 +3,22 @@ import { onRegionChange, getCurrentRegion } from './location-flow.js';
 import { openCartDrawer } from './cart-drawer.js';
 import { checkAllRequired, scrollToFirstInvalid } from './form-validation.js';
 
-// Unified bottom-bar button. One [primary-action] element whose text + click
-// behavior change based on (region, payment-choice). Replaces the legacy
-// trio of [buy-button] / [deposit-button] / [form-button].
-//
-// State matrix:
-//   region=us, payment=full     → "Checkout" → cart drawer → Shopify checkout
-//   region=us, payment=deposit  → "Submit"   → submit Interest Form ("Save your configuration")
-//   region=non-us               → "Submit"   → submit Interest Form
-//
-// "Save your configuration" and the rest-of-world flow submit the SAME
-// #wf-form-Olto-Interest-Form. The text element inside the button is
-// .text-size-large (Webflow convention).
+// Bottom-bar button + the always-present interest/save form (the LAST step).
+//   non-US             → form expanded, "Register Your Interest" head; button "Submit" → submit form
+//   US, form collapsed → "Not ready to buy? / Save" head; button "Checkout" → cart drawer
+//   US, form expanded  → button "Submit" → submit the form (save configuration)
+// Every "interest" case submits the same #wf-form-Olto-Interest-Form. The click
+// is bound to [checkout-actions] (the button itself can be pointer-events:none).
 
 const TOTAL_BLOCK = '[data-total-block]';
-const FORM_BLOCK = '[form-block]';
-const PAYMENT_GROUP = '[data-option-group="payment"]';
-const PAYMENT_OPTION = '.custom-option-value';
-const ACTIVE_CLASS = 'sf-active';
 
-let currentPayment = 'full'; // default — only meaningful when region=us
+let formContent = null; // collapsible body of the form (everything after the heads)
+let formIconSvg = null; // <svg> inside the save head's chevron icon
+let chevronMarkup = ''; // original chevron paths (restored on collapse)
+let formExpanded = false; // is the form open? (drives US checkout-vs-submit)
+
+// "X" close icon in the chevron's 16×16 viewBox.
+const CLOSE_MARKUP = '<path d="M4 4L12 12" stroke="black"></path><path d="M12 4L4 12" stroke="black"></path>';
 
 export function initPrimaryAction() {
   const $btn = $('[primary-action]');
@@ -31,28 +27,15 @@ export function initPrimaryAction() {
     return;
   }
 
-  // React to payment option clicks (only relevant when region=us)
-  $(document).on('click', `${PAYMENT_GROUP} ${PAYMENT_OPTION}`, function () {
-    const value = $(this).attr('data-option-value');
-    if (!value) return;
-    $(this).siblings(`.${ACTIVE_CLASS}`).removeClass(ACTIVE_CLASS);
-    $(`${PAYMENT_GROUP} ${PAYMENT_OPTION}`).removeClass(ACTIVE_CLASS);
-    $(this).addClass(ACTIVE_CLASS);
-    currentPayment = value;
-    syncButton();
-  });
+  setupInterestForm();
+  onRegionChange(({ region }) => applyRegion(region));
 
-  // React to region changes
-  onRegionChange(() => syncButton());
-
-  // Click handler — bound to the [checkout-actions] bar, not [primary-action]
-  // itself: the button can be pointer-events:none (disabled look), so the click
-  // lands on the bar (pass-through when disabled, bubble-up when enabled).
-  // Validate first; if anything required is missing, surface it and scroll there
-  // instead of submitting. Otherwise branch by state.
+  // Click on the BAR (the button can be pointer-events:none). Validate first;
+  // if anything required is missing, surface it and scroll there.
   $('[checkout-actions]').on('click', (e) => {
     e.preventDefault();
-    if (!checkAllRequired()) {
+    if (!checkAllRequired(true)) {
+      // arm error marks on the first submit attempt
       scrollToFirstInvalid();
       return;
     }
@@ -60,49 +43,94 @@ export function initPrimaryAction() {
     else submitForm('#wf-form-Olto-Interest-Form');
   });
 
+  // US "Save your configuration" has its own submit button (the bottom bar stays
+  // "Checkout"). Validate, then submit the same interest form.
+  $(document).on('click', '[data-submit-btn="save"]', (e) => {
+    e.preventDefault();
+    if (!checkAllRequired(true)) {
+      scrollToFirstInvalid();
+      return;
+    }
+    submitForm('#wf-form-Olto-Interest-Form');
+  });
+
+  applyRegion(getCurrentRegion());
+
+  // Force the form wrapper visible AFTER all setup, so nothing (Webflow form init,
+  // region/accordion logic) can leave it hidden.
+  $('[form-block]').css({ display: 'flex', opacity: 1 });
+}
+
+// The interest/save form is the last step. Two heads ([option-head="non-us"] /
+// [option-head="save"]) + a collapsible body. Wrap everything after the heads
+// into one [data-step-content]; the save head's chevron toggles it.
+function setupInterestForm() {
+  const form = document.getElementById('wf-form-Olto-Interest-Form');
+  if (!form) {
+    console.warn('[PrimaryAction] No #wf-form-Olto-Interest-Form on page — interest form not wired');
+    return;
+  }
+
+  let content = form.querySelector('[data-step-content]');
+  if (!content) {
+    content = document.createElement('div');
+    content.setAttribute('data-step-content', '');
+    Array.from(form.children)
+      .filter((c) => !c.hasAttribute('option-head'))
+      .forEach((c) => content.appendChild(c));
+    form.appendChild(content);
+  }
+  content.style.overflow = 'hidden';
+  content.style.transition = 'height 0.3s ease';
+  formContent = content;
+
+  const saveHead = form.querySelector('[option-head="save"]');
+  const icon = saveHead ? saveHead.querySelector('.icon-embed-16') : null;
+  formIconSvg = icon ? icon.querySelector('svg') : null;
+  chevronMarkup = formIconSvg ? formIconSvg.innerHTML : '';
+  if (saveHead) saveHead.addEventListener('click', () => setFormOpen(!formExpanded, true));
+}
+
+// Open/close the form body. Plain height auto/0 — no scrollHeight measurement,
+// so it works even before layout settles. The chevron icon swaps to an "X" when
+// open and back to the chevron when collapsed.
+function setFormOpen(open, sync) {
+  if (formContent) formContent.style.height = open ? 'auto' : '0px';
+  if (formIconSvg) formIconSvg.innerHTML = open ? CLOSE_MARKUP : chevronMarkup;
+  formExpanded = open;
+  if (sync) syncButton();
+}
+
+// Swap heads/content/expand per region, then resync the button.
+function applyRegion(region) {
+  const nonUs = !!region && region !== 'us';
+  const $form = $('#wf-form-Olto-Interest-Form');
+
+  $form.find('[option-head="non-us"]').css('display', nonUs ? '' : 'none');
+  $form.find('[option-head="save"]').css('display', nonUs ? 'none' : '');
+  $form.find('[non-us-content]').css('display', nonUs ? '' : 'none');
+  $form.find('[save-content]').css('display', nonUs ? 'none' : '');
+  // The save form's own submit button is US-only; non-US submits via the bottom bar.
+  $form.find('[data-submit-btn="save"]').css('display', nonUs ? 'none' : '');
+
+  setFormOpen(nonUs, false); // non-US expanded by default; US collapsed
   syncButton();
 }
 
 function currentState() {
   const region = getCurrentRegion();
-  if (region === 'us' && currentPayment === 'full') return 'checkout';
-  return 'interest'; // non-US, or US + "Save your configuration" → interest form
+  // US always checkouts via the bottom bar; the US "Save your configuration" form
+  // submits through its own [data-submit-btn="save"]. Non-US submits the form.
+  return region && region !== 'us' ? 'interest' : 'checkout';
 }
 
 function syncButton() {
-  const $btn = $('[primary-action]');
-  const $text = $btn.find('.text-size-large').first();
-  const region = getCurrentRegion();
+  const $text = $('[primary-action]').find('.text-size-large').first();
   const checkout = currentState() === 'checkout';
-  // The form shows for US + "Save your configuration", or for any non-US region.
-  const saveMode = region === 'us' && currentPayment === 'deposit';
-  const showForm = saveMode || (!!region && region !== 'us');
-
   $text.text(checkout ? 'Checkout' : 'Submit');
   $(TOTAL_BLOCK).css(checkout ? { display: 'flex', opacity: 1 } : { display: 'none', opacity: 0 });
-  $(FORM_BLOCK).css(showForm ? { display: 'flex', opacity: 1 } : { display: 'none', opacity: 0 });
-  if (showForm) setFormContext(saveMode);
-
-  // The email field is [data-required] but only counts while visible, so the
-  // button's disabled state must be re-evaluated whenever the form is shown/hidden.
+  // Email is [data-required] but only counts while the form is open → re-check.
   checkAllRequired();
-}
-
-// Tailor the same form to its context: US "Save your configuration" vs the
-// rest-of-world "Register your Interest". Swaps the heading and shows the right
-// note paragraph ([save-content] vs [non-us-content]). The non-US heading is
-// captured from Webflow on first run so it keeps whatever you authored there.
-let interestHeading = null;
-function setFormContext(saveMode) {
-  const $form = $(FORM_BLOCK);
-  let $title = $form.find('[data-form-title]').first();
-  if (!$title.length) $title = $form.find('[option-head] .text-size-regular').first();
-  if ($title.length) {
-    if (interestHeading === null) interestHeading = $title.text() || 'Register your Interest';
-    $title.text(saveMode ? 'Save your configuration' : interestHeading);
-  }
-  $form.find('[non-us-content]').css('display', saveMode ? 'none' : '');
-  $form.find('[save-content]').css('display', saveMode ? '' : 'none');
 }
 
 function submitForm(selector) {
@@ -111,43 +139,33 @@ function submitForm(selector) {
     console.warn(`[PrimaryAction] Form ${selector} not found`);
     return;
   }
-  // Populate hidden inputs with current config snapshot before submit
   fillFormSnapshot($form);
 
-  // Prefer clicking the form's internal [data-form-button] (more reliable —
-  // Webflow binds the submit on the button click). Fallback to jQuery's
-  // .submit() event for forms that don't have the button yet.
   const $submitBtn = $form.find('[data-form-button]').first();
   if ($submitBtn.length) {
     $submitBtn[0].click();
   } else {
-    console.warn(`[PrimaryAction] No [data-form-button] inside ${selector} — using form.submit() event fallback`);
+    console.warn(`[PrimaryAction] No [data-form-button] inside ${selector} — using form.submit() fallback`);
     $form.submit();
   }
 
-  // Collapse the rest of the configurator ONLY once Webflow's success state
-  // actually appears (.w-form-done becomes visible) — not on the submit attempt,
-  // so a validation/network failure leaves everything in place to retry.
   collapseOnSuccess($form);
 }
 
-// Watch the form's Webflow success element (.w-form-done). When it becomes
-// visible (display flips off "none"), hide the other steps + the bottom bar so
-// only the success message remains.
+// Collapse the rest of the configurator ONLY once Webflow's success state
+// actually appears (.w-form-done becomes visible) — not on the submit attempt.
 function collapseOnSuccess($form) {
-  const wrap = $form.closest('.w-form').get(0) || $form.closest('[form-block]').get(0);
+  const wrap = $form.closest('.w-form').get(0) || $form.closest('.checkout_interest-form').get(0);
   const done = wrap?.querySelector('.w-form-done');
   if (!done) {
     console.warn('[PrimaryAction] No .w-form-done success element found — leaving layout as-is');
     return;
   }
-
   const isShown = () => getComputedStyle(done).display !== 'none';
   const collapse = () => {
     $form.closest('[step-block]').siblings().hide();
     $('[checkout-actions]').hide();
   };
-
   if (isShown()) {
     collapse();
     return;
@@ -159,19 +177,15 @@ function collapseOnSuccess($form) {
     }
   });
   obs.observe(done, { attributes: true, attributeFilter: ['style', 'class'] });
-  setTimeout(() => obs.disconnect(), 30000); // stop watching after a while
+  setTimeout(() => obs.disconnect(), 30000);
 }
 
-// Pulls the current config state from DOM-derived selections and writes to
-// the form's hidden inputs. The receiving system (Hubspot etc.) sees the
-// configuration the user was looking at when they submitted.
+// Pulls the current config from the DOM into the form's hidden inputs so the
+// receiving system sees the configuration the user was looking at.
 function fillFormSnapshot($form) {
   const country = $('#country').val() || '';
   const variant = $('[data-option-group="color"] .sf-active[data-swatch]').attr('data-swatch') || '';
-  const pack =
-    $(`${PAYMENT_GROUP} .${ACTIVE_CLASS}`).attr('data-option-value') === 'full'
-      ? ''
-      : $('[data-preset-value].sf-active').attr('data-preset-value') || '';
+  const pack = $('[data-preset-value].sf-active').attr('data-preset-value') || '';
   const wrap = $('[data-inc-item="wrap-label"]').text() || '';
   const quantity = $('[data-config-qty-input]').first().text().trim() || '1';
   const accessories = $('[data-accessories="list"] [data-item="label"]')

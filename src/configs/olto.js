@@ -22,7 +22,7 @@ export default {
     { type: 'bundle', no: '04', title: 'Accessory Pack' },
     { type: 'accessories', no: '05', title: 'Configure your Accessories' },
     { type: 'quantity', no: '06', title: 'Quantity' },
-    { type: 'payment', no: '07', title: 'Payment', startOpen: true },
+    // The interest/save form is appended as the last step by flow.js (buildInterestForm).
   ],
 
   // Main product (queried by handle, not ID — handles survive product re-creation)
