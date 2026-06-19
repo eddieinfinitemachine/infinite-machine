@@ -1,6 +1,7 @@
 import $ from '../lib/jquery.js';
 import { onRegionChange, getCurrentRegion } from './location-flow.js';
 import { openCartDrawer } from './cart-drawer.js';
+import { getCheckoutUrl } from '../lib/cart.js';
 import { checkAllRequired, scrollToFirstInvalid } from './form-validation.js';
 
 // Bottom-bar button + the always-present interest/save form (the LAST step).
@@ -54,11 +55,62 @@ export function initPrimaryAction() {
     submitForm('#wf-form-Olto-Interest-Form');
   });
 
+  setupFixedCheckout();
   applyRegion(getCurrentRegion());
 
   // Force the form wrapper visible AFTER all setup, so nothing (Webflow form init,
   // region/accordion logic) can leave it hidden.
   $('[form-block]').css({ display: 'flex', opacity: 1 });
+}
+
+// Fixed mobile checkout button ([data-checkout-button="fixed"]) → straight to
+// checkout. Shown only when US + viewport ≤991px + the [data-flow="actions"] bar
+// is OUT of view (so there's never a double CTA). Toggled via inline display, so
+// don't use Webflow's "Hide" on it — let the JS own its visibility.
+function setupFixedCheckout() {
+  const fixed = document.querySelector('[data-checkout-button="fixed"]');
+  if (!fixed) {
+    console.warn('[FixedCheckout] no [data-checkout-button="fixed"] element found');
+    return;
+  }
+  const actions = document.querySelector('[data-flow="actions"]');
+
+  let actionsInView = false;
+  const update = () => {
+    const show = getCurrentRegion() === 'us' && window.innerWidth <= 991 && !actionsInView;
+    fixed.style.display = show ? 'flex' : 'none';
+  };
+
+  if (actions && 'IntersectionObserver' in window) {
+    new IntersectionObserver(
+      (entries) => {
+        actionsInView = entries[0].isIntersecting;
+        update();
+      },
+      { threshold: 0 }
+    ).observe(actions);
+  }
+
+  onRegionChange(() => update());
+
+  // Width-only resize (mobile scroll changes height and must not retrigger).
+  let lastWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
+    update();
+  });
+
+  // Straight to Shopify checkout (skip the cart-drawer review step). No
+  // validation — the button only shows for US, so a country is already selected,
+  // and the email isn't required for checkout (only for saving).
+  fixed.addEventListener('click', (e) => {
+    e.preventDefault();
+    const url = getCheckoutUrl();
+    if (url) window.location.href = url;
+  });
+
+  update();
 }
 
 // The interest/save form is the last step. Two heads ([option-head="non-us"] /
