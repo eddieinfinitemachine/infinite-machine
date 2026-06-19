@@ -1,7 +1,6 @@
 import $ from '../lib/jquery.js';
 import { onRegionChange, getCurrentRegion } from './location-flow.js';
 import { openCartDrawer } from './cart-drawer.js';
-import { getCheckoutUrl } from '../lib/cart.js';
 import { checkAllRequired, scrollToFirstInvalid } from './form-validation.js';
 
 // Bottom-bar button + the always-present interest/save form (the LAST step).
@@ -14,6 +13,7 @@ import { checkAllRequired, scrollToFirstInvalid } from './form-validation.js';
 const TOTAL_BLOCK = '[data-total-block]';
 
 let formContent = null; // collapsible body of the form (everything after the heads)
+let formEmail = null; // the email input (data-required toggled by open state)
 let formIconSvg = null; // <svg> inside the save head's chevron icon
 let chevronMarkup = ''; // original chevron paths (restored on collapse)
 let formExpanded = false; // is the form open? (drives US checkout-vs-submit)
@@ -32,8 +32,11 @@ export function initPrimaryAction() {
   onRegionChange(({ region }) => applyRegion(region));
 
   // Click on the BAR (the button can be pointer-events:none). Validate first;
-  // if anything required is missing, surface it and scroll there.
+  // if anything required is missing, surface it and scroll there. The form lives
+  // inside the bar (US), so clicks within it — the save head toggle, inputs, its
+  // own submit button — must NOT trigger checkout.
   $('[checkout-actions]').on('click', (e) => {
+    if (e.target.closest('[form-block]')) return;
     e.preventDefault();
     if (!checkAllRequired(true)) {
       // arm error marks on the first submit attempt
@@ -55,7 +58,6 @@ export function initPrimaryAction() {
     submitForm('#wf-form-Olto-Interest-Form');
   });
 
-  setupFixedCheckout();
   applyRegion(getCurrentRegion());
 
   // Force the form wrapper visible AFTER all setup, so nothing (Webflow form init,
@@ -63,59 +65,10 @@ export function initPrimaryAction() {
   $('[form-block]').css({ display: 'flex', opacity: 1 });
 }
 
-// Fixed mobile checkout button ([data-checkout-button="fixed"]) → straight to
-// checkout. Shown only when US + viewport ≤991px + the [data-flow="actions"] bar
-// is OUT of view (so there's never a double CTA). Toggled via inline display, so
-// don't use Webflow's "Hide" on it — let the JS own its visibility.
-function setupFixedCheckout() {
-  const fixed = document.querySelector('[data-checkout-button="fixed"]');
-  if (!fixed) {
-    console.warn('[FixedCheckout] no [data-checkout-button="fixed"] element found');
-    return;
-  }
-  const actions = document.querySelector('[data-flow="actions"]');
-
-  let actionsInView = false;
-  const update = () => {
-    const show = getCurrentRegion() === 'us' && window.innerWidth <= 991 && !actionsInView;
-    fixed.style.display = show ? 'flex' : 'none';
-  };
-
-  if (actions && 'IntersectionObserver' in window) {
-    new IntersectionObserver(
-      (entries) => {
-        actionsInView = entries[0].isIntersecting;
-        update();
-      },
-      { threshold: 0 }
-    ).observe(actions);
-  }
-
-  onRegionChange(() => update());
-
-  // Width-only resize (mobile scroll changes height and must not retrigger).
-  let lastWidth = window.innerWidth;
-  window.addEventListener('resize', () => {
-    if (window.innerWidth === lastWidth) return;
-    lastWidth = window.innerWidth;
-    update();
-  });
-
-  // Straight to Shopify checkout (skip the cart-drawer review step). No
-  // validation — the button only shows for US, so a country is already selected,
-  // and the email isn't required for checkout (only for saving).
-  fixed.addEventListener('click', (e) => {
-    e.preventDefault();
-    const url = getCheckoutUrl();
-    if (url) window.location.href = url;
-  });
-
-  update();
-}
-
-// The interest/save form is the last step. Two heads ([option-head="non-us"] /
-// [option-head="save"]) + a collapsible body. Wrap everything after the heads
-// into one [data-step-content]; the save head's chevron toggles it.
+// The interest/save form lives in the bottom action bar (next to total +
+// checkout). Two heads ([option-head="non-us"] / [option-head="save"]) + a
+// collapsible body. Wrap everything after the heads into one
+// [data-step-content]; the save head's chevron toggles it.
 function setupInterestForm() {
   const form = document.getElementById('wf-form-Olto-Interest-Form');
   if (!form) {
@@ -135,6 +88,7 @@ function setupInterestForm() {
   content.style.overflow = 'hidden';
   content.style.transition = 'height 0.3s ease';
   formContent = content;
+  formEmail = content.querySelector('input[type="email"], input.is-email');
 
   const saveHead = form.querySelector('[option-head="save"]');
   const icon = saveHead ? saveHead.querySelector('.icon-embed-16') : null;
@@ -149,6 +103,14 @@ function setupInterestForm() {
 function setFormOpen(open, sync) {
   if (formContent) formContent.style.height = open ? 'auto' : '0px';
   if (formIconSvg) formIconSvg.innerHTML = open ? CLOSE_MARKUP : chevronMarkup;
+  // The email lives in the collapsible body. jQuery ':visible' still counts it
+  // when the body is height:0/overflow:hidden (it checks the element's own size,
+  // not ancestor clipping), so a COLLAPSED save form would otherwise gate the
+  // Checkout button. Only require the email while the form is actually open.
+  if (formEmail) {
+    if (open) formEmail.setAttribute('data-required', '');
+    else formEmail.removeAttribute('data-required');
+  }
   formExpanded = open;
   if (sync) syncButton();
 }
@@ -157,6 +119,19 @@ function setFormOpen(open, sync) {
 function applyRegion(region) {
   const nonUs = !!region && region !== 'us';
   const $form = $('#wf-form-Olto-Interest-Form');
+
+  // Relocate the form: US → first item in the action bar (next to total +
+  // checkout); non-US → appended as the last step in the flow.
+  const formBlock = document.querySelector('[form-block]');
+  const steps = document.querySelector('[data-flow="steps"]');
+  const bar = document.querySelector('[checkout-actions]');
+  if (formBlock) {
+    if (nonUs && steps) {
+      if (formBlock.parentNode !== steps) steps.appendChild(formBlock);
+    } else if (!nonUs && bar) {
+      if (bar.firstElementChild !== formBlock) bar.insertBefore(formBlock, bar.firstElementChild);
+    }
+  }
 
   $form.find('[option-head="non-us"]').css('display', nonUs ? '' : 'none');
   $form.find('[option-head="save"]').css('display', nonUs ? 'none' : '');
@@ -215,8 +190,12 @@ function collapseOnSuccess($form) {
   }
   const isShown = () => getComputedStyle(done).display !== 'none';
   const collapse = () => {
-    $form.closest('[step-block]').siblings().hide();
-    $('[checkout-actions]').hide();
+    // Keep the form (with its success message) wherever it lives — US: in the
+    // action bar, non-US: as a step — and hide everything else: the config steps
+    // and the bar's total + checkout button.
+    const formBlock = document.querySelector('[form-block]');
+    $('[data-flow="steps"]').children().not(formBlock).hide();
+    $('[checkout-actions]').children().not(formBlock).hide();
   };
   if (isShown()) {
     collapse();

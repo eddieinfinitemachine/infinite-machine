@@ -54,14 +54,16 @@ export function buildFlow(config) {
     if ($block) $steps.append($block);
   }
 
-  // Non-US terminal — Register Your Interest form (hidden; revealed per region
-  // by location-flow.js applyFlowForRegion).
+  // Interest / "Save your configuration" form — lives INSIDE the bottom action
+  // bar (next to total + checkout button), built by buildActions below.
   const $interest = buildInterestForm(kit);
-  if ($interest) $steps.append($interest);
 
-  // Sticky bottom bar — total + action button
-  if ($actions.length) buildActions(kit, $actions);
-  else console.warn('[Flow] No [data-flow="actions"] mount — bottom bar not built');
+  // Sticky bottom bar — total + action button + save form
+  if ($actions.length) buildActions(kit, $actions, $interest);
+  else {
+    console.warn('[Flow] No [data-flow="actions"] mount — bottom bar not built');
+    if ($interest) $steps.append($interest); // fallback: keep form in the flow
+  }
 
   // Loader — SHOW it during boot (clear the kit atom's inline display:none);
   // configurator-init hides .checkout_product-load once boot completes.
@@ -249,7 +251,7 @@ function buildInterestForm(kit) {
   return $form;
 }
 
-function buildActions(kit, $actions) {
+function buildActions(kit, $actions, $interest) {
   const $bar = $('<div checkout-actions class="checkout_bottom-bar is-olto"></div>');
 
   // Total block — price-display targets [data-total-block] [data-price]
@@ -260,6 +262,8 @@ function buildActions(kit, $actions) {
   // Action button — primary-action drives its text/click by region
   const $action = clone(kit, 'checkout-action').attr('primary-action', '');
 
+  // Save / interest form sits FIRST in the bar, before the total + checkout button.
+  if ($interest) $bar.append($interest);
   $bar.append($total).append($('<div></div>').append($action));
   $actions.append($bar);
 }
