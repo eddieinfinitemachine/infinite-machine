@@ -1,6 +1,6 @@
 import $ from '../lib/jquery.js';
 import { onRegionChange, getCurrentRegion } from './location-flow.js';
-import { openCartDrawer } from './cart-drawer.js';
+import { getCheckoutUrl } from '../lib/cart.js';
 import { checkAllRequired, scrollToFirstInvalid } from './form-validation.js';
 
 // Bottom-bar button + the always-present interest/save form (the LAST step).
@@ -43,8 +43,11 @@ export function initPrimaryAction() {
       scrollToFirstInvalid();
       return;
     }
-    if (currentState() === 'checkout') openCartDrawer();
-    else submitForm('#wf-form-Olto-Interest-Form');
+    if (currentState() === 'checkout') {
+      // Cart drawer disabled (client request) — go straight to Shopify checkout.
+      const url = getCheckoutUrl();
+      if (url) window.location.href = url;
+    } else submitForm('#wf-form-Olto-Interest-Form');
   });
 
   // US "Save your configuration" has its own submit button (the bottom bar stays

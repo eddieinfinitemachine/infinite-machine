@@ -1,10 +1,8 @@
 import $ from '../lib/jquery.js';
-import { getCart } from '../lib/cart.js';
-import { openCartDrawer } from './cart-drawer.js';
+import { getCart, getCheckoutUrl } from '../lib/cart.js';
 
-// Buy button → opens the cart drawer (which has the actual Checkout button).
-// Drawer is the single review step before going to Shopify checkout —
-// required for multi-bike configurations so user can see all groups.
+// Buy button → straight to Shopify checkout. The cart drawer (the old in-page
+// review step) is disabled per client request, so no path opens it anymore.
 
 export function initBuyFlow() {
   $('[buy-button]').on('click.buyFlow', function (e) {
@@ -14,6 +12,7 @@ export function initBuyFlow() {
       console.warn('[BuyFlow] Cart is empty');
       return;
     }
-    openCartDrawer();
+    const url = getCheckoutUrl();
+    if (url) window.location.href = url;
   });
 }
