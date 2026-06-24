@@ -204,38 +204,43 @@ The selected **location** decides the flow (handled by `location-flow.js`):
 
 | Region | Countries | Flow |
 |--------|-----------|------|
-| **US** | United States, Canada | **Full payment** — configure → bottom-bar **Checkout** → cart drawer → Shopify checkout. |
-| **Rest of world** ("eu") | everything else | **Register interest** — the interest form is the last step; bottom-bar button becomes **Submit**. |
+| **US** | United States, Canada | **Full payment** — configure → bottom-bar **Checkout** → **straight to Shopify checkout**. A "Save your Olto for later" head in the bar opens the interest modal in *save* mode (optional). |
+| **Rest of world** ("eu") | everything else | **Register interest** — bottom-bar button is **Submit** → opens the interest modal in *interest* mode. |
 
 The region is detected automatically via geoip (`get.geojs.io`) and can be changed by
 the customer from the Location dropdown. Changing it re-runs the region logic everywhere
 through the `onRegionChange` subscription.
 
+> **Cart drawer is currently disabled** (client request). Both the bottom-bar Checkout
+> and the `[buy-button]` redirect **straight to Shopify checkout** (`getCheckoutUrl()`)
+> instead of opening the in-page cart drawer. The drawer module (`cart-drawer.js`) is
+> still in the bundle but nothing calls `openCartDrawer()` — a two-line revert in
+> `primary-action.js` + `buy-flow.js` brings it back. Customers still see Shopify's own
+> order summary on the checkout page.
+
 ---
 
-## 7. The action bar & save/interest form
+## 7. The action bar & the interest/save modal
 
-The bottom bar (`[checkout-actions]`, inside `[data-flow="actions"]`) holds the **total**,
-the **checkout/submit button** (`[primary-action]`), and the **interest/save form**
-(`#wf-form-Olto-Interest-Form`). The form has two heads and a collapsible body:
-
-- `[option-head="save"]` — US: *"Not ready to buy? / Save your configuration"* (collapsed by default).
-- `[option-head="non-us"]` — rest of world: *"Register your interest"* (expanded by default).
+The bottom bar (`[checkout-actions]`, inside `[data-flow="actions"]`) holds the **total**
+and the **checkout/submit button** (`[primary-action]`). The interest/save form lives in
+its **own Webflow modal** — `[data-modal-name="interest"]`, containing
+`#wf-form-Olto-Interest-Form` (name / email / phone + hidden config inputs). It is **not**
+built by `flow.js`; the Webflow page provides it.
 
 ### Behaviour by region (owned by `modules/primary-action.js`)
 
 | | US / Canada | Rest of world |
 |---|---|---|
-| Form **location** | **First item in the action bar**, next to total + button | **Last step** in the flow column |
-| Form **state** | Collapsed (save head); chevron toggles it | Expanded (register-interest head) |
-| Bottom button | **Checkout** → cart drawer | **Submit** → submits the form |
-| How the form submits | Its **own** circle button `[data-submit-btn="save"]` | The bottom bar button |
+| Bottom button | **Checkout** → straight to Shopify checkout | **Submit** → opens the interest modal |
+| Save path | A **"Save your Olto for later"** head (`[option-head="save"]`) is inserted into the bar → opens the modal in *save* mode | (the Submit button is the only path) |
+| Modal copy | `[save-content]` + title "Save your configuration" | `[non-us-content]` + title "Register Your Interest" |
 
-### Important implementation notes
-- **Click scoping.** The bar's click handler ignores clicks inside `[form-block]`, so toggling the save head or using its inputs/button never triggers checkout.
-- **Email gating.** The email input is only marked `data-required` while the form is *open*. (jQuery's `:visible` still counts an input inside a `height:0` container, so a collapsed form would otherwise wrongly disable the Checkout button.)
-- **Success collapse.** On a successful save, the config steps and the bar's total + button hide, but the form (and its success message) stays visible — wherever it currently lives.
-- **Chevron ↔ X.** The save head's chevron swaps to an "X" while the form is open.
+### How the modal works
+- **Opening is programmatic.** `primary-action.js` sets `[data-modal-name="interest"]` and the modal group to `active`. It also **snapshots the current config** (location, variant, wrap, pack, accessories, quantity) into the form's hidden inputs, and swaps the region copy.
+- **Closing is owned by the page's modal system** (`initModalBasic`: `[data-modal-close]`, the dark overlay, and the Escape key). That script must be present on the page.
+- **Submit is Webflow-native.** The modal form submits via Webflow AJAX (`required` fields + `.w-form-done` success state). `primary-action.js` strips `data-required` from the modal's fields so an open modal can't disable the bar buttons through `form-validation.js`.
+- **The save head markup** is generated inline in `primary-action.js` (`SAVE_HEAD_HTML`) using the page's existing `checkout_info-head` classes. To control it from Webflow instead, turn it into a kit atom and clone it.
 
 ---
 
@@ -261,9 +266,9 @@ the **checkout/submit button** (`[primary-action]`), and the **interest/save for
 | `location-flow.js` | Country dropdown, geoip, US-vs-RoW region, `onRegionChange` pub/sub. |
 | `form-validation.js` | Required-field checks, button enable/disable, error lines, scroll-to-missing. |
 | `accordion.js` | Generic collapsible step (height animation + rotating chevron). |
-| `primary-action.js` | Bottom-bar button + the interest/save form (heads, expand, submit, region relocation). |
+| `primary-action.js` | Bottom-bar button (Checkout/Submit) + the US save head; opens the interest **modal** and snapshots the config into it. |
 | `price-display.js` | Live total in the bar. |
-| `cart-drawer.js` | The attribute-driven cart drawer (`openCartDrawer()`); the bike line can't be removed. |
+| `cart-drawer.js` | The attribute-driven cart drawer (`openCartDrawer()`). **Currently disabled** — nothing calls it (see §6); kept for an easy revert. |
 | `config-quantity.js` | Quantity stepper. |
 | `config-reset.js` | "Reset" the current configuration. |
 | `buy-flow.js` / `main-product-cart.js` | Add-to-cart / checkout plumbing for the main product. |
@@ -326,9 +331,11 @@ at the new bundle.
 |---------|--------------------|
 | Nothing boots, console error about `data-configurator` | The `<body data-configurator="olto">` marker is missing. |
 | Whole step column blank | An error during `buildFlow` or a module init — check the console; the `"boot complete"` line will be missing. |
-| Checkout button stuck disabled | A visible required field is empty. Note: the interest-form email only counts while the form is **open** (see §7). |
-| Clicking inside the form triggers checkout | The bar click handler should skip `[form-block]` clicks (it does — see §7). |
-| Form reloads the page with data in the URL | Webflow's AJAX handler didn't bind to the injected form — `bindWebflowForms()` handles this; confirm it runs. |
+| Checkout button stuck disabled | A visible required field is empty — for the configurator that's the Location `#country`. (The interest-modal fields don't gate it; their `data-required` is stripped.) |
+| Interest modal won't open | No `[data-modal-name="interest"]` on the page, or the region isn't resolved. `primary-action.js` warns in the console if the modal is missing. |
+| Interest modal won't close | The page's modal system (`initModalBasic`) isn't running — opening is done by the configurator, but closing (`[data-modal-close]` / Esc) relies on that script. |
+| Modal shows the wrong copy | `[non-us-content]` / `[save-content]` / `[data-title]` toggles are driven by region; check the country resolved correctly. |
+| Form reloads the page with data in the URL | Webflow's AJAX handler didn't bind to the form — `bindWebflowForms()` handles this; confirm it runs. |
 | Accessory video won't open | The accessory has no `custom.instruction_video` metafield and `testInstructionVideo` was removed. |
 | A step won't collapse / has no chevron | It's marked `collapsible: false` in `olto.js` (intended for Location). |
 
