@@ -22,7 +22,8 @@ export default {
     { type: 'bundle', no: '04', title: 'Accessory Pack' },
     { type: 'accessories', no: '05', title: 'Configure your Accessories' },
     { type: 'quantity', no: '06', title: 'Quantity' },
-    // The interest/save form is appended as the last step by flow.js (buildInterestForm).
+    // The interest/save form is a standalone Webflow modal ([data-modal-name="interest"]),
+    // opened by primary-action.js — not a step in this flow.
   ],
 
   // Main product (queried by handle, not ID — handles survive product re-creation)

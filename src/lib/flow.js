@@ -54,16 +54,11 @@ export function buildFlow(config) {
     if ($block) $steps.append($block);
   }
 
-  // Interest / "Save your configuration" form — lives INSIDE the bottom action
-  // bar (next to total + checkout button), built by buildActions below.
-  const $interest = buildInterestForm(kit);
-
-  // Sticky bottom bar — total + action button + save form
-  if ($actions.length) buildActions(kit, $actions, $interest);
-  else {
-    console.warn('[Flow] No [data-flow="actions"] mount — bottom bar not built');
-    if ($interest) $steps.append($interest); // fallback: keep form in the flow
-  }
+  // Sticky bottom bar — total + action button. (The interest/save form is now a
+  // standalone Webflow modal [data-modal-name="interest"] opened by
+  // primary-action.js — no longer built into the flow or the bar.)
+  if ($actions.length) buildActions(kit, $actions);
+  else console.warn('[Flow] No [data-flow="actions"] mount — bottom bar not built');
 
   // Loader — SHOW it during boot (clear the kit atom's inline display:none);
   // configurator-init hides .checkout_product-load once boot completes.
@@ -240,18 +235,7 @@ function buildQuantity(step, kit, $block) {
 
 // ---- Terminal + actions ---------------------------------------------------
 
-function buildInterestForm(kit) {
-  const $form = clone(kit, 'interest-form');
-  if (!$form.length) return null;
-  // Always-visible LAST step. primary-action.js turns it into a collapsible step
-  // (save head + chevron), swaps the head/expand per region, and submits the
-  // inner #wf-form-Olto-Interest-Form via its [data-form-button]. primary-action
-  // forces display:flex/opacity:1 on [form-block] after all setup.
-  $form.attr({ 'step-block': '', 'form-block': '' });
-  return $form;
-}
-
-function buildActions(kit, $actions, $interest) {
+function buildActions(kit, $actions) {
   const $bar = $('<div checkout-actions class="checkout_bottom-bar is-olto"></div>');
 
   // Total block — price-display targets [data-total-block] [data-price]
@@ -262,10 +246,9 @@ function buildActions(kit, $actions, $interest) {
   // Action button — primary-action drives its text/click by region
   const $action = clone(kit, 'checkout-action').attr('primary-action', '');
 
-  // Save / interest form sits FIRST in the bar, before the total + checkout button.
-  if ($interest) $bar.append($interest);
   $bar.append($total).append($('<div></div>').append($action));
   $actions.append($bar);
+  // primary-action.js inserts the US "Save your Olto for later" head into this bar.
 }
 
 // ---- Accessory atom bridge ------------------------------------------------

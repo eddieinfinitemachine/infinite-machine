@@ -3,23 +3,40 @@ import { onRegionChange, getCurrentRegion } from './location-flow.js';
 import { getCheckoutUrl } from '../lib/cart.js';
 import { checkAllRequired, scrollToFirstInvalid } from './form-validation.js';
 
-// Bottom-bar button + the always-present interest/save form (the LAST step).
-//   non-US             → form expanded, "Register Your Interest" head; button "Submit" → submit form
-//   US, form collapsed → "Not ready to buy? / Save" head; button "Checkout" → cart drawer
-//   US, form expanded  → button "Submit" → submit the form (save configuration)
-// Every "interest" case submits the same #wf-form-Olto-Interest-Form. The click
-// is bound to [checkout-actions] (the button itself can be pointer-events:none).
+// Bottom-bar button + the interest/save MODAL trigger.
+// The interest/save form now lives in its own Webflow modal
+// ([data-modal-name="interest"], containing #wf-form-Olto-Interest-Form). This
+// module only OPENS that modal — open/close transitions + close buttons are
+// handled by the page's modal system (initModalBasic: [data-modal-close], Esc).
+//
+//   US  → bottom button "Checkout" → straight to Shopify checkout.
+//         A "Save your Olto for later" head ([option-head="save"]) is inserted
+//         into the action bar; clicking it opens the interest modal (save mode).
+//   non-US → bottom button "Submit" → opens the interest modal (interest mode).
+//
+// The bar click is bound to [checkout-actions] (the button can be
+// pointer-events:none); the save head has its own handler and is excluded there.
 
 const TOTAL_BLOCK = '[data-total-block]';
+const MODAL = '[data-modal-name="interest"]';
 
-let formContent = null; // collapsible body of the form (everything after the heads)
-let formEmail = null; // the email input (data-required toggled by open state)
-let formIconSvg = null; // <svg> inside the save head's chevron icon
-let chevronMarkup = ''; // original chevron paths (restored on collapse)
-let formExpanded = false; // is the form open? (drives US checkout-vs-submit)
-
-// "X" close icon in the chevron's 16×16 viewBox.
-const CLOSE_MARKUP = '<path d="M4 4L12 12" stroke="black"></path><path d="M12 4L4 12" stroke="black"></path>';
+// US "Save your Olto for later" head, inserted into the action bar (uses the
+// page's existing checkout_info-head styles).
+const SAVE_HEAD_HTML = `
+<div option-head="save" class="checkout_info-head is-bottom-border is-small is-save">
+  <div class="checkout_info-head-inner">
+    <div class="text-size-regular text-weight-medium">Save your Olto for later</div>
+  </div>
+  <div class="checkout_info-head-arrow">
+    <div class="cc-meta-8">
+      <div class="icon-embed-16 w-embed">
+        <svg width="100%" height="100%" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 5L8 11L2 5" stroke="black"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>`;
 
 export function initPrimaryAction() {
   const $btn = $('[primary-action]');
@@ -28,130 +45,101 @@ export function initPrimaryAction() {
     return;
   }
 
-  setupInterestForm();
+  setupModalForm();
+  buildSaveHead();
   onRegionChange(({ region }) => applyRegion(region));
 
-  // Click on the BAR (the button can be pointer-events:none). Validate first;
-  // if anything required is missing, surface it and scroll there. The form lives
-  // inside the bar (US), so clicks within it — the save head toggle, inputs, its
-  // own submit button — must NOT trigger checkout.
+  // Click on the BAR (the button can be pointer-events:none). The save head has
+  // its own handler, so ignore clicks that originate inside it.
   $('[checkout-actions]').on('click', (e) => {
-    if (e.target.closest('[form-block]')) return;
+    if (e.target.closest('[option-head="save"]')) return;
     e.preventDefault();
-    if (!checkAllRequired(true)) {
-      // arm error marks on the first submit attempt
-      scrollToFirstInvalid();
-      return;
-    }
     if (currentState() === 'checkout') {
-      // Cart drawer disabled (client request) — go straight to Shopify checkout.
+      // US — validate (country) then go straight to Shopify checkout.
+      if (!checkAllRequired(true)) {
+        scrollToFirstInvalid();
+        return;
+      }
       const url = getCheckoutUrl();
       if (url) window.location.href = url;
-    } else submitForm('#wf-form-Olto-Interest-Form');
+    } else {
+      // non-US — open the interest modal.
+      openInterestModal();
+    }
   });
 
-  // US "Save your configuration" has its own submit button (the bottom bar stays
-  // "Checkout"). Validate, then submit the same interest form.
-  $(document).on('click', '[data-submit-btn="save"]', (e) => {
+  // US save head → open the same modal (delegated; the head is inserted at runtime).
+  $(document).on('click', '[option-head="save"]', (e) => {
     e.preventDefault();
-    if (!checkAllRequired(true)) {
-      scrollToFirstInvalid();
-      return;
-    }
-    submitForm('#wf-form-Olto-Interest-Form');
+    openInterestModal();
   });
 
   applyRegion(getCurrentRegion());
-
-  // Force the form wrapper visible AFTER all setup, so nothing (Webflow form init,
-  // region/accordion logic) can leave it hidden.
-  $('[form-block]').css({ display: 'flex', opacity: 1 });
 }
 
-// The interest/save form lives in the bottom action bar (next to total +
-// checkout). Two heads ([option-head="non-us"] / [option-head="save"]) + a
-// collapsible body. Wrap everything after the heads into one
-// [data-step-content]; the save head's chevron toggles it.
-function setupInterestForm() {
+// Insert the US "Save your Olto for later" head as the first item in the bar.
+function buildSaveHead() {
+  if (document.querySelector('[option-head="save"]')) return;
+  const bar = document.querySelector('[checkout-actions]');
+  if (!bar) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = SAVE_HEAD_HTML.trim();
+  const head = tmp.firstElementChild;
+  if (head) bar.insertBefore(head, bar.firstElementChild);
+}
+
+// The interest modal form is Webflow-native (its own `required` validation +
+// AJAX submit). Drop our data-required from its fields so an open modal doesn't
+// gate the configurator's bottom-bar buttons via form-validation.
+function setupModalForm() {
   const form = document.getElementById('wf-form-Olto-Interest-Form');
   if (!form) {
-    console.warn('[PrimaryAction] No #wf-form-Olto-Interest-Form on page — interest form not wired');
+    console.warn('[PrimaryAction] No #wf-form-Olto-Interest-Form (interest modal) on page');
     return;
   }
-
-  let content = form.querySelector('[data-step-content]');
-  if (!content) {
-    content = document.createElement('div');
-    content.setAttribute('data-step-content', '');
-    Array.from(form.children)
-      .filter((c) => !c.hasAttribute('option-head'))
-      .forEach((c) => content.appendChild(c));
-    form.appendChild(content);
-  }
-  content.style.overflow = 'hidden';
-  content.style.transition = 'height 0.3s ease';
-  formContent = content;
-  formEmail = content.querySelector('input[type="email"], input.is-email');
-
-  const saveHead = form.querySelector('[option-head="save"]');
-  const icon = saveHead ? saveHead.querySelector('.icon-embed-16') : null;
-  formIconSvg = icon ? icon.querySelector('svg') : null;
-  chevronMarkup = formIconSvg ? formIconSvg.innerHTML : '';
-  if (saveHead) saveHead.addEventListener('click', () => setFormOpen(!formExpanded, true));
+  form.querySelectorAll('[data-required]').forEach((el) => el.removeAttribute('data-required'));
 }
 
-// Open/close the form body. Plain height auto/0 — no scrollHeight measurement,
-// so it works even before layout settles. The chevron icon swaps to an "X" when
-// open and back to the chevron when collapsed.
-function setFormOpen(open, sync) {
-  if (formContent) formContent.style.height = open ? 'auto' : '0px';
-  if (formIconSvg) formIconSvg.innerHTML = open ? CLOSE_MARKUP : chevronMarkup;
-  // The email lives in the collapsible body. jQuery ':visible' still counts it
-  // when the body is height:0/overflow:hidden (it checks the element's own size,
-  // not ancestor clipping), so a COLLAPSED save form would otherwise gate the
-  // Checkout button. Only require the email while the form is actually open.
-  if (formEmail) {
-    if (open) formEmail.setAttribute('data-required', '');
-    else formEmail.removeAttribute('data-required');
+// Open the interest modal: snapshot the current config into its hidden inputs,
+// set the right copy for the region, then flip the modal/group active. Closing
+// is owned by the page's modal system.
+function openInterestModal() {
+  const $modal = $(MODAL);
+  if (!$modal.length) {
+    console.warn('[PrimaryAction] No [data-modal-name="interest"] modal on page');
+    return;
   }
-  formExpanded = open;
-  if (sync) syncButton();
+  applyModalContent(getCurrentRegion());
+  fillFormSnapshot($('#wf-form-Olto-Interest-Form'));
+
+  $modal.attr('data-modal-status', 'active');
+  const group = document.querySelector('[data-modal-group-status]');
+  if (group) group.setAttribute('data-modal-group-status', 'active');
 }
 
-// Swap heads/content/expand per region, then resync the button.
-function applyRegion(region) {
+// Swap the modal's region-dependent copy (interest vs save).
+function applyModalContent(region) {
   const nonUs = !!region && region !== 'us';
-  const $form = $('#wf-form-Olto-Interest-Form');
-
-  // Relocate the form: US → first item in the action bar (next to total +
-  // checkout); non-US → appended as the last step in the flow.
-  const formBlock = document.querySelector('[form-block]');
-  const steps = document.querySelector('[data-flow="steps"]');
-  const bar = document.querySelector('[checkout-actions]');
-  if (formBlock) {
-    if (nonUs && steps) {
-      if (formBlock.parentNode !== steps) steps.appendChild(formBlock);
-    } else if (!nonUs && bar) {
-      if (bar.firstElementChild !== formBlock) bar.insertBefore(formBlock, bar.firstElementChild);
-    }
-  }
-
-  $form.find('[option-head="non-us"]').css('display', nonUs ? '' : 'none');
-  $form.find('[option-head="save"]').css('display', nonUs ? 'none' : '');
-  $form.find('[non-us-content]').css('display', nonUs ? '' : 'none');
-  $form.find('[save-content]').css('display', nonUs ? 'none' : '');
-  // The save form's own submit button is US-only; non-US submits via the bottom bar.
-  $form.find('[data-submit-btn="save"]').css('display', nonUs ? 'none' : '');
-
-  setFormOpen(nonUs, false); // non-US expanded by default; US collapsed
-  syncButton();
+  const $modal = $(MODAL);
+  if (!$modal.length) return;
+  $modal.find('[non-us-content]').css('display', nonUs ? '' : 'none');
+  $modal.find('[save-content]').css('display', nonUs ? 'none' : '');
+  $modal.find('[data-title]').text(nonUs ? 'Register Your Interest' : 'Save your configuration');
 }
 
+// US → checkout; everything else → interest (opens the modal).
 function currentState() {
   const region = getCurrentRegion();
-  // US always checkouts via the bottom bar; the US "Save your configuration" form
-  // submits through its own [data-submit-btn="save"]. Non-US submits the form.
   return region && region !== 'us' ? 'interest' : 'checkout';
+}
+
+// Per-region bar state: show the save head + total for US, hide them for non-US
+// (which uses the Submit button), and set the modal copy + button text.
+function applyRegion(region) {
+  const nonUs = !!region && region !== 'us';
+  $('[option-head="save"]').css('display', nonUs ? 'none' : '');
+  applyModalContent(region);
+  syncButton();
 }
 
 function syncButton() {
@@ -159,64 +147,13 @@ function syncButton() {
   const checkout = currentState() === 'checkout';
   $text.text(checkout ? 'Checkout' : 'Submit');
   $(TOTAL_BLOCK).css(checkout ? { display: 'flex', opacity: 1 } : { display: 'none', opacity: 0 });
-  // Email is [data-required] but only counts while the form is open → re-check.
   checkAllRequired();
 }
 
-function submitForm(selector) {
-  const $form = $(selector);
-  if (!$form.length) {
-    console.warn(`[PrimaryAction] Form ${selector} not found`);
-    return;
-  }
-  fillFormSnapshot($form);
-
-  const $submitBtn = $form.find('[data-form-button]').first();
-  if ($submitBtn.length) {
-    $submitBtn[0].click();
-  } else {
-    console.warn(`[PrimaryAction] No [data-form-button] inside ${selector} — using form.submit() fallback`);
-    $form.submit();
-  }
-
-  collapseOnSuccess($form);
-}
-
-// Collapse the rest of the configurator ONLY once Webflow's success state
-// actually appears (.w-form-done becomes visible) — not on the submit attempt.
-function collapseOnSuccess($form) {
-  const wrap = $form.closest('.w-form').get(0) || $form.closest('.checkout_interest-form').get(0);
-  const done = wrap?.querySelector('.w-form-done');
-  if (!done) {
-    console.warn('[PrimaryAction] No .w-form-done success element found — leaving layout as-is');
-    return;
-  }
-  const isShown = () => getComputedStyle(done).display !== 'none';
-  const collapse = () => {
-    // Keep the form (with its success message) wherever it lives — US: in the
-    // action bar, non-US: as a step — and hide everything else: the config steps
-    // and the bar's total + checkout button.
-    const formBlock = document.querySelector('[form-block]');
-    $('[data-flow="steps"]').children().not(formBlock).hide();
-    $('[checkout-actions]').children().not(formBlock).hide();
-  };
-  if (isShown()) {
-    collapse();
-    return;
-  }
-  const obs = new MutationObserver(() => {
-    if (isShown()) {
-      obs.disconnect();
-      collapse();
-    }
-  });
-  obs.observe(done, { attributes: true, attributeFilter: ['style', 'class'] });
-  setTimeout(() => obs.disconnect(), 30000);
-}
-
-// Pulls the current config from the DOM into the form's hidden inputs so the
-// receiving system sees the configuration the user was looking at.
+// Pulls the current config from the DOM into the modal form's hidden inputs so
+// the receiving system sees the configuration the user was looking at.
 function fillFormSnapshot($form) {
+  if (!$form.length) return;
   const country = $('#country').val() || '';
   const variant = $('[data-option-group="color"] .sf-active[data-swatch]').attr('data-swatch') || '';
   const pack = $('[data-preset-value].sf-active').attr('data-preset-value') || '';
