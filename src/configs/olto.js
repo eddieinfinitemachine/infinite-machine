@@ -50,17 +50,17 @@ export default {
   // UI metadata per variant — overlay on Shopify variant data. Keyed by
   // variant ID (matches the ?variant= URL param the configurator drives off).
   variants: {
-    '44842879156380': {
+    44842879156380: {
       color: 'Black',
       colorHex: '#000000',
-      delivery: 'June 2026',
+      delivery: 'July 2026',
       backgroundImage:
         'https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/68ff73905e7daa5ef224c5d5_olto-eu-black.avif',
     },
-    '44842879123612': {
+    44842879123612: {
       color: 'Silver',
       colorHex: '#D9D9D9',
-      delivery: 'July 2026',
+      delivery: 'August 2026',
       backgroundImage:
         'https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/68ff7390e94ecc537b713a30_olto-eu-silver.avif',
     },
