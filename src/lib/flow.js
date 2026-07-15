@@ -113,6 +113,21 @@ function wireAccordion($block, step) {
   initAccordion(head, content, { startOpen: !!step.startOpen, chevron });
 }
 
+// Renumber the VISIBLE step heads sequentially (01, 02, …), so when a step is
+// hidden (e.g. Location on mobile) the numbering the user sees still starts at 01
+// with no gap. Called whenever a step's visibility changes.
+export function renumberVisibleSteps() {
+  const blocks = document.querySelectorAll('[data-flow="steps"] [step-block]');
+  let n = 0;
+  blocks.forEach((block) => {
+    const numEl = block.querySelector('[data-step="step"]');
+    if (!numEl) return; // e.g. the loader — no number
+    if (getComputedStyle(block).display === 'none') return; // skip hidden steps
+    n += 1;
+    numEl.textContent = String(n).padStart(2, '0');
+  });
+}
+
 // ---- Head -----------------------------------------------------------------
 // Clones the generic head atom and tailors it per step: number, title, the
 // rotating chevron, and (for location/forms) the validation line.

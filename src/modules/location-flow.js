@@ -1,6 +1,7 @@
 import $ from '../lib/jquery.js';
 import { revealItem, hideItem } from '../lib/dom.js';
 import { countries as embeddedCountries } from '../lib/countries.js';
+import { renumberVisibleSteps } from '../lib/flow.js';
 
 // Region-based show/hide config for the configurator's location/payment flow.
 // Triggered when the user selects a country from #country dropdown.
@@ -32,6 +33,25 @@ let currentRegion = '';
 let currentCountry = null;
 const regionChangeHandlers = [];
 
+// On screens below this width the Location step is hidden IF geoip auto-selects a
+// country; it's only revealed when auto-select fails, so a manual pick is possible.
+const LOCATION_MOBILE_MAX = 992;
+let geoipState = 'pending'; // 'pending' | 'success' | 'failure'
+
+// Hide the location step-block on mobile unless geoip failed (then show it so the
+// user can pick). Always visible on desktop. Called on each geoip transition and
+// on width-only resize. Uses display so a hidden #country drops out of the
+// required-field check (it's already auto-filled, so it needn't gate checkout).
+function applyLocationVisibility() {
+  const select = document.getElementById('country');
+  const step = select ? select.closest('[step-block]') : null;
+  if (!step) return;
+  const mobile = window.innerWidth < LOCATION_MOBILE_MAX;
+  const hide = mobile && geoipState !== 'failure';
+  step.style.display = hide ? 'none' : '';
+  renumberVisibleSteps(); // keep the visible numbering starting at 01
+}
+
 export function getCurrentRegion() {
   return currentRegion;
 }
@@ -55,6 +75,15 @@ export function initLocationFlow() {
   populateCountryOptions($select);
   bindCountryChange($select);
   setupGeoip($select);
+
+  // Re-evaluate the mobile hide/show when the viewport crosses the breakpoint
+  // (width-only — mobile scroll changes height and must not retrigger).
+  let lastWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
+    applyLocationVisibility();
+  });
 }
 
 function populateCountryOptions($select) {
@@ -76,28 +105,41 @@ function bindCountryChange($select) {
 }
 
 function setupGeoip($select) {
-  // The third-party geoip script calls window.geoip(json) once it resolves.
-  // It runs BEFORE our bundle parses, so an early shim in <head> captures the
-  // data into window.__geoipData. We pick it up here, OR register a fresh
-  // window.geoip if the shim didn't fire yet (defensive fallback).
+  // On mobile the location step starts hidden (geoipState 'pending') and is only
+  // revealed if auto-select fails.
+  applyLocationVisibility();
 
   // Fetch country code directly from geojs.io. No external script tag needed.
-  // Falls back silently if the request fails — user can still pick manually.
+  // On any failure the step is revealed so the user can still pick manually.
   fetch('https://get.geojs.io/v1/ip/country')
     .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
     .then((code) => {
       const trimmed = code.trim().toUpperCase();
       if (trimmed) selectCountryByCode($select, trimmed);
+      else geoipFailed();
     })
     .catch((err) => {
       console.warn('[Configurator] Geoip fetch failed:', err.message);
+      geoipFailed();
     });
+
+  // Safety net: if geoip is still pending after 8s (slow/hung request), reveal
+  // the selector rather than trapping the mobile user with no way to pick.
+  setTimeout(() => {
+    if (geoipState === 'pending') geoipFailed();
+  }, 8000);
 
   // Also honor the legacy callback in case someone loaded the geo.js script tag
   window.geoip = (data) => {
     const code = data?.country_code;
     if (code) selectCountryByCode($select, code);
+    else geoipFailed();
   };
+}
+
+function geoipFailed() {
+  geoipState = 'failure';
+  applyLocationVisibility();
 }
 
 function selectCountryByCode($select, code) {
@@ -109,10 +151,13 @@ function selectCountryByCode($select, code) {
       // error state. bindCountryChange handler also fires locationFlow, so
       // we don't need to call it directly here.
       $select.trigger('change');
+      geoipState = 'success';
+      applyLocationVisibility(); // auto-select worked → keep hidden on mobile
       return;
     }
   }
   console.warn(`[Configurator] No <option> matched country code "${code}"`);
+  geoipFailed(); // reveal the selector so the user can pick manually
 }
 
 function locationFlow($select) {
