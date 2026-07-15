@@ -263,7 +263,7 @@ built by `flow.js`; the Webflow page provides it.
 ### Feature modules (`src/modules/`)
 | File | Responsibility |
 |------|----------------|
-| `location-flow.js` | Country dropdown, geoip, US-vs-RoW region, `onRegionChange` pub/sub. |
+| `location-flow.js` | Country dropdown, geoip, US-vs-RoW region, `onRegionChange` pub/sub. Also hides the Location step on `<992px` unless geoip auto-select fails (safety-net reveal after 8s), and renumbers the visible steps. |
 | `form-validation.js` | Required-field checks, button enable/disable, error lines, scroll-to-missing. |
 | `accordion.js` | Generic collapsible step (height animation + rotating chevron). |
 | `primary-action.js` | Bottom-bar button (Checkout/Submit) + the US save head; opens the interest **modal** and snapshots the config into it. |
@@ -338,6 +338,7 @@ at the new bundle.
 | Form reloads the page with data in the URL | Webflow's AJAX handler didn't bind to the form — `bindWebflowForms()` handles this; confirm it runs. |
 | Accessory video won't open | The accessory has no `custom.instruction_video` metafield and `testInstructionVideo` was removed. |
 | A step won't collapse / has no chevron | It's marked `collapsible: false` in `olto.js` (intended for Location). |
+| Location step missing on mobile | Intended — on `<992px` it's hidden when geoip auto-selects a country; it reveals only if auto-select fails. Visible steps renumber from 01. Desktop is unaffected. |
 
 ---
 
