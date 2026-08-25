@@ -934,4 +934,21 @@ form[data-save-form] .saveform_field:first-of-type {
   .sheet {
     border-inline: 1px solid var(--line);
   }
+
+}
+
+/* Squat viewports (desktop windows, landscape phones): cover would crop the
+   vehicle out of the 44vh hero box (handlebars/helmet cut off). Letterbox
+   the full shot instead — the photos' own white ground blends into a white
+   hero, and base + layers switch together so they stay pixel-registered.
+   Portrait phones (aspect < 3/5) keep the tuned cover composition. */
+@media (min-aspect-ratio: 3/5) {
+  .hero {
+    background: #fff;
+  }
+
+  .hero_img,
+  .hero_layer {
+    object-fit: contain;
+  }
 }
