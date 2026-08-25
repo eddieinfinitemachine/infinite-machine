@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import * as esbuild from 'esbuild';
-import { readdirSync } from 'fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'fs';
 import { join, sep } from 'path';
 
 // Config output
@@ -8,11 +8,11 @@ const BUILD_DIRECTORY = 'dist';
 const PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Config entrypoint files
-const ENTRY_POINTS = ['src/configurator.js'];
+const ENTRY_POINTS = ['src/configurator.js', 'src/tesla/tesla.js'];
 
 // Config dev serving
 const LIVE_RELOAD = !PRODUCTION;
-const SERVE_PORT = 3000;
+const SERVE_PORT = Number(process.env.PORT) || 3000;
 const SERVE_ORIGIN = `http://localhost:${SERVE_PORT}`;
 
 // Sanity-check required env at build time. Bail loudly if missing — silent
@@ -24,6 +24,11 @@ if (missing.length) {
   console.error('Check .env (gitignored) or .env.example for the expected keys.\n');
   process.exit(1);
 }
+
+// Demo page: copy the Tesla-style configurator shell into dist so the dev
+// server (servedir = dist) serves it at /tesla/.
+mkdirSync(join(BUILD_DIRECTORY, 'tesla'), { recursive: true });
+copyFileSync('src/tesla/index.html', join(BUILD_DIRECTORY, 'tesla', 'index.html'));
 
 // Create context
 const context = await esbuild.context({
