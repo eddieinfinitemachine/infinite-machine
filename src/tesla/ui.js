@@ -36,10 +36,11 @@ export const ACCESSORY_LAYERS = {
 };
 
 // Payment plans — Tesla-style Cash / Lease / Finance toggle.
-// TODO(eddie): no financing or lease program exists on shop.infinitemachine.com
-// today, so these terms are ILLUSTRATIVE. Tune months/apr/residual here.
+// Finance mirrors the ClarityPay Tier 1 48-month offer (15.99% APR w/ AutoPay,
+// proposal dated 2026-08-21); no financing is live on the store yet, so figures
+// remain estimates. Lease is still ILLUSTRATIVE — no lease program exists.
 export const PAYMENT_PLANS = {
-  finance: { months: 12, apr: 0 },
+  finance: { months: 48, apr: 0.1599 },
   lease: { months: 24, residualPct: 0.35 },
 };
 
@@ -53,10 +54,9 @@ export function paymentFigures(total, currency, mode) {
       amount: monthly,
       suffix: '/mo',
       label: 'Est. finance payment',
-      sub: `${months} monthly payments of ${formatMoney(
-        monthly,
-        currency
-      )}. Estimate for illustration — payment options appear at checkout.`,
+      sub: `${months} monthly payments of ${formatMoney(monthly, currency)} at ${(
+        apr * 100
+      ).toFixed(2)}% APR. Estimate for illustration — payment options appear at checkout.`,
     };
   }
   if (mode === 'lease') {
