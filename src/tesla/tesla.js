@@ -80,6 +80,7 @@ async function boot() {
   bindEvents();
   subscribe(update);
   update(getState());
+  initNudge();
 
   // A shared ?d= link fully describes a configuration — rebuild it into a
   // fresh session (works cross-device; the cart is created on this browser).
@@ -148,7 +149,12 @@ function bindEvents() {
     if (e.target.closest('[data-qty-dec]')) return changeQty(-1);
     if (e.target.closest('[data-qty-inc]')) return changeQty(1);
 
-    if (e.target.closest('[data-save]')) return saveConfiguration();
+    if (e.target.closest('[data-save]')) {
+      // Saving from the nudge confirms ("Link copied") then dismisses it
+      if (e.target.closest('[data-nudge]')) setTimeout(hideNudge, 2200);
+      return saveConfiguration();
+    }
+    if (e.target.closest('[data-nudge-close]')) return hideNudge();
     if (e.target.closest('[data-config-reset]')) return clearConfiguration();
     if (e.target.closest('[data-cta]')) return primaryAction();
     if (e.target.closest('[data-interest-close]')) return toggleInterest(false);
@@ -307,19 +313,19 @@ async function saveConfiguration() {
   const url = new URL(window.location.href);
   url.searchParams.set('d', code);
 
-  const btn = app.querySelector('[data-save]');
+  const btns = [...app.querySelectorAll('[data-save]')];
   try {
     await navigator.clipboard.writeText(url.toString());
-    if (btn) btn.textContent = 'Link copied';
+    for (const b of btns) b.textContent = 'Link copied';
   } catch {
     // Clipboard blocked (permissions/insecure context) — keep the link in the
     // address bar instead so it can be copied manually
     window.history.replaceState({}, '', url.toString());
-    if (btn) btn.textContent = 'Link in URL';
+    for (const b of btns) b.textContent = 'Link in URL';
   }
   clearTimeout(saveResetTimer);
   saveResetTimer = setTimeout(() => {
-    if (btn) btn.textContent = 'Save';
+    for (const b of btns) b.textContent = b.dataset.saveLabel || 'Save';
   }, 2200);
 }
 
@@ -367,6 +373,46 @@ function primaryAction() {
   if (state.region === 'row') return toggleInterest(true);
   const url = getCheckoutUrl();
   if (url) window.location.href = url;
+}
+
+// Scroll nudge: first time the Payment section comes into view (deep-scroll,
+// high intent), slide up a card offering Save / talk to a rep. Once per
+// browser session.
+const NUDGE_KEY = 'olto_tesla_nudge';
+
+function initNudge() {
+  const nudge = app.querySelector('[data-nudge]');
+  const target = app.querySelector('[data-section="payment"]');
+  if (!nudge || !target) return;
+  try {
+    if (sessionStorage.getItem(NUDGE_KEY)) return;
+  } catch {
+    // Storage blocked (private mode) — fall through, worst case it shows again
+  }
+  const io = new IntersectionObserver(
+    (entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      io.disconnect();
+      nudge.hidden = false;
+      requestAnimationFrame(() => nudge.classList.add('is-in'));
+      try {
+        sessionStorage.setItem(NUDGE_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+    },
+    { threshold: 0.3 }
+  );
+  io.observe(target);
+}
+
+function hideNudge() {
+  const nudge = app.querySelector('[data-nudge]');
+  if (!nudge || nudge.hidden) return;
+  nudge.classList.remove('is-in');
+  setTimeout(() => {
+    nudge.hidden = true;
+  }, 450);
 }
 
 function toggleInterest(open) {

@@ -265,6 +265,25 @@ export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
       </div>
     </footer>
 
+    <aside class="nudge" data-nudge hidden>
+      <button type="button" class="nudge_close" data-nudge-close aria-label="Dismiss">&times;</button>
+      <p class="nudge_title">Don&rsquo;t lose your design</p>
+      <p class="nudge_body">Save it to share or finish later &mdash; or talk it through with an IM rep.</p>
+      <div class="nudge_actions">
+        <button type="button" class="nudge_save" data-save data-save-label="Save my design">
+          Save my design
+        </button>
+        <a
+          class="nudge_rep"
+          href="https://www.infinitemachine.com/contact"
+          target="_blank"
+          rel="noopener"
+        >
+          Talk to a rep
+        </a>
+      </div>
+    </aside>
+
     <div class="modal" data-interest hidden>
       <div class="modal_backdrop" data-interest-close></div>
       <div class="modal_sheet">
