@@ -272,6 +272,12 @@ button {
   min-height: 1.2em;
 }
 
+.intro_price {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

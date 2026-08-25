@@ -114,6 +114,14 @@ export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
   const variants = Object.entries(config.variants); // [numericId, meta]
   const [defaultId] = variants.find(([id]) => id === config.defaultVariantId) || variants[0];
 
+  // Static "from" anchor for the intro — base bike only, rounded to whole
+  // dollars. Deliberately NOT live: the sticky order bar is the single live
+  // figure for the configured build.
+  const basePrice = Math.min(...products.main.variants.map((v) => parseFloat(v.price.amount)));
+  const { months, apr } = PAYMENT_PLANS.finance;
+  const monthlyRate = apr / 12;
+  const monthlyFrom = Math.round((basePrice * monthlyRate) / (1 - (1 + monthlyRate) ** -months));
+
   return `
     <header class="topbar">
       <div class="topbar_mark">${WORDMARK_SVG}</div>
@@ -142,6 +150,9 @@ export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
       <section class="intro">
         <h1 class="intro_title">${OLTO_WORDMARK_SVG}</h1>
         <p class="intro_delivery" data-delivery></p>
+        <p class="intro_price">From ${formatMoney(basePrice)} · or ${formatMoney(
+    monthlyFrom
+  )}/mo financing</p>
         <div class="stats">
           ${STATS.map(
             (s) => `
