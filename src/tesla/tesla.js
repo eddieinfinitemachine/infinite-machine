@@ -68,6 +68,8 @@ async function boot() {
     return;
   }
 
+  bundles = tuneBundles(bundles);
+
   // Same matching rule as modules/wrap-orchestration.js — the wrap product
   // has one variant per color, keyed by a "Color(s)" option.
   wrapVariantsByColor = buildWrapVariantMap(products.wrap);
@@ -104,6 +106,21 @@ async function boot() {
   for (const v of products.main.variants) {
     if (v.image?.url) new Image().src = imgUrl(v.image.url, 1600);
   }
+}
+
+// Page-level merchandising (Eddie's call, 2026-08-25): hide the Kids pack and
+// add the open-face helmet to Basic. The bundle metaobjects also feed the live
+// configurator, so Shopify data stays untouched — only this page's list is
+// adjusted, and it's the one handed to initState, so exact-set active
+// detection matches what's rendered (and what selectBundle batch-adds).
+function tuneBundles(list) {
+  const tuned = list.filter((b) => b.handle !== 'kids');
+  const basic = tuned.find((b) => b.handle === 'basic');
+  const helmet = products.accessories.find((p) => p.handle === 'open-face-helmet');
+  if (basic && helmet && !basic.products.some((p) => p.handle === helmet.handle)) {
+    basic.products = [...basic.products, helmet];
+  }
+  return tuned;
 }
 
 function buildWrapVariantMap(wrap) {
@@ -150,14 +167,28 @@ function bindEvents() {
     if (e.target.closest('[data-qty-inc]')) return changeQty(1);
 
     if (e.target.closest('[data-save]')) {
-      // Saving from the nudge confirms ("Link copied") then dismisses it
-      if (e.target.closest('[data-nudge]')) setTimeout(hideNudge, 2200);
-      return saveConfiguration();
+      if (getStoredLead()) {
+        // Already identified — quick save, no form. Saving from the nudge
+        // confirms ("Link copied") then dismisses it.
+        if (e.target.closest('[data-nudge]')) setTimeout(hideNudge, 2200);
+        return saveConfiguration();
+      }
+      // First save: the lead form takes over (the nudge would stack under it)
+      if (e.target.closest('[data-nudge]')) hideNudge();
+      return toggleSaveModal(true);
     }
+    if (e.target.closest('[data-save-close]')) return toggleSaveModal(false);
     if (e.target.closest('[data-nudge-close]')) return hideNudge();
     if (e.target.closest('[data-config-reset]')) return clearConfiguration();
     if (e.target.closest('[data-cta]')) return primaryAction();
     if (e.target.closest('[data-interest-close]')) return toggleInterest(false);
+  });
+
+  app.addEventListener('submit', (e) => {
+    if (e.target.closest('[data-save-form]')) {
+      e.preventDefault();
+      submitSaveForm(e.target);
+    }
   });
 }
 
@@ -275,7 +306,7 @@ function readDesignParam() {
     base,
     wrap: wrap || null,
     qty: Math.min(99, Math.max(1, parseInt(qty, 10) || 1)),
-    pay: ['cash', 'lease', 'finance'].includes(pay) ? pay : 'cash',
+    pay: ['cash', 'lease', 'finance'].includes(pay) ? pay : 'finance',
     accs: (accs || '').split('~').filter(Boolean),
   };
 }
@@ -302,8 +333,7 @@ async function applyDesign(design) {
   window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
 }
 
-let saveResetTimer = null;
-async function saveConfiguration() {
+function designUrl() {
   const state = getState();
   const wrapColor = state.wrapLine
     ? wrapColorOf(state.wrapLine.merchandise) || state.wrapLine.merchandise.title
@@ -312,15 +342,20 @@ async function saveConfiguration() {
   const code = [state.baseNumericId, wrapColor, state.quantity, state.payMode, accs].join('.');
   const url = new URL(window.location.href);
   url.searchParams.set('d', code);
+  return url.toString();
+}
 
+let saveResetTimer = null;
+async function saveConfiguration() {
+  const url = designUrl();
   const btns = [...app.querySelectorAll('[data-save]')];
   try {
-    await navigator.clipboard.writeText(url.toString());
+    await navigator.clipboard.writeText(url);
     for (const b of btns) b.textContent = 'Link copied';
   } catch {
     // Clipboard blocked (permissions/insecure context) — keep the link in the
     // address bar instead so it can be copied manually
-    window.history.replaceState({}, '', url.toString());
+    window.history.replaceState({}, '', url);
     for (const b of btns) b.textContent = 'Link in URL';
   }
   clearTimeout(saveResetTimer);
@@ -361,7 +396,7 @@ async function clearConfiguration() {
   } catch (err) {
     console.error('[Tesla] Clear failed:', err);
   }
-  setPayMode('cash');
+  setPayMode('finance'); // back to the default view
   // Fresh session starts empty — re-seed the default bike (upstream's
   // main-product-cart does the same on the live site)
   setLineForProduct(products.main.handle, gidForVariant(config.defaultVariantId));
@@ -418,6 +453,86 @@ function hideNudge() {
 function toggleInterest(open) {
   const modal = app.querySelector('[data-interest]');
   if (modal) modal.hidden = !open;
+}
+
+// ---------- Save-design lead capture ----------
+
+// The form collects name/email/phone but is deliberately NOT wired to a
+// backend yet (Eddie's call, 2026-08-25) — the lead only lands in the
+// visitor's own localStorage so repeat saves skip the form. When it's time to
+// wire it (CRM endpoint), submitSaveForm is the single hook point.
+const LEAD_KEY = 'olto_tesla_lead';
+
+function getStoredLead() {
+  try {
+    const lead = JSON.parse(localStorage.getItem(LEAD_KEY));
+    return lead?.email ? lead : null;
+  } catch {
+    return null;
+  }
+}
+
+function toggleSaveModal(open) {
+  const modal = app.querySelector('[data-save-modal]');
+  if (!modal) return;
+  modal.hidden = !open;
+  if (open) {
+    const form = modal.querySelector('[data-save-form]');
+    const done = modal.querySelector('[data-save-done]');
+    if (form) form.hidden = false;
+    if (done) done.hidden = true;
+    modal.querySelector('input[name="name"]')?.focus();
+  }
+}
+
+async function submitSaveForm(form) {
+  const name = form.name.value.trim();
+  const email = form.email.value.trim();
+  const phone = form.phone.value.trim();
+  const error = form.querySelector('[data-save-error]');
+  let problem = null;
+  if (!name) problem = 'Please add your name.';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    problem = 'That email doesn’t look right.';
+  } else if (phone.replace(/\D/g, '').length < 7) {
+    problem = 'That phone number looks too short.';
+  }
+  if (problem) {
+    if (error) {
+      error.textContent = problem;
+      error.hidden = false;
+    }
+    return;
+  }
+  if (error) error.hidden = true;
+
+  try {
+    localStorage.setItem(LEAD_KEY, JSON.stringify({ name, email, phone }));
+  } catch {
+    // Storage blocked (private mode) — the form just shows again next save
+  }
+
+  const url = designUrl();
+  let copied = true;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch {
+    copied = false;
+  }
+
+  form.hidden = true;
+  const done = app.querySelector('[data-save-done]');
+  if (done) {
+    done.hidden = false;
+    const msg = done.querySelector('[data-save-done-msg]');
+    if (msg) {
+      msg.textContent = copied
+        ? 'Link copied to your clipboard — it rebuilds this exact Olto.'
+        : 'Copy your link below — it rebuilds this exact Olto.';
+    }
+    const link = done.querySelector('[data-save-link]');
+    if (link) link.textContent = url;
+  }
 }
 
 // Region gate: US + Canada order, everyone else registers interest — same

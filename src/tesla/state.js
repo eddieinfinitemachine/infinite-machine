@@ -26,7 +26,7 @@ const state = {
   quantity: 1,
   total: 0,
   currency: 'USD',
-  payMode: 'cash', // 'cash' | 'lease' | 'finance' — Tesla-style payment toggle
+  payMode: 'finance', // 'cash' | 'lease' | 'finance' — finance ($99/mo anchor) is the default view
   cart: null,
 };
 

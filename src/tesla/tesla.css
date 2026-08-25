@@ -872,6 +872,57 @@ button {
   color: var(--ink-2);
 }
 
+/* ---------- Save-design lead form ---------- */
+
+/* .modal_cta is sized by display:block on <a>; buttons need the width spelled out */
+button.modal_cta {
+  width: 100%;
+}
+
+.saveform_field {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  text-align: left; /* the sheet centers text — inputs read left-aligned */
+}
+
+form[data-save-form] .saveform_field:first-of-type {
+  margin-top: 20px;
+}
+
+.saveform_field::placeholder {
+  color: var(--ink-3);
+}
+
+.saveform_field:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+.saveform_error {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #c0392b;
+}
+
+.savedone_link {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  word-break: break-all;
+  user-select: all;
+}
+
 /* ---------- Desktop: keep the phone composition, centered ---------- */
 
 @media (min-width: 641px) {

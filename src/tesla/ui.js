@@ -298,6 +298,31 @@ export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
         <button type="button" class="modal_close" data-interest-close>Close</button>
       </div>
     </div>
+
+    <div class="modal" data-save-modal hidden>
+      <div class="modal_backdrop" data-save-close></div>
+      <div class="modal_sheet">
+        <form data-save-form novalidate>
+          <h3 class="modal_title">Save your design</h3>
+          <p class="modal_body">
+            We&rsquo;ll copy a link that rebuilds this exact Olto &mdash; share it or pick
+            up where you left off on any device.
+          </p>
+          <input class="saveform_field" type="text" name="name" placeholder="Name" autocomplete="name" />
+          <input class="saveform_field" type="email" name="email" placeholder="Email" autocomplete="email" inputmode="email" />
+          <input class="saveform_field" type="tel" name="phone" placeholder="Phone" autocomplete="tel" inputmode="tel" />
+          <p class="saveform_error" data-save-error hidden></p>
+          <button type="submit" class="modal_cta">Save my design</button>
+          <button type="button" class="modal_close" data-save-close>Close</button>
+        </form>
+        <div data-save-done hidden>
+          <h3 class="modal_title">Design saved</h3>
+          <p class="modal_body" data-save-done-msg>Link copied to your clipboard.</p>
+          <p class="savedone_link" data-save-link></p>
+          <button type="button" class="modal_cta" data-save-close>Done</button>
+        </div>
+      </div>
+    </div>
   `;
 }
 
