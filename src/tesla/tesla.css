@@ -207,6 +207,11 @@ button {
   inset: 0;
 }
 
+/* A non-composite wrap photo is showing — its layers would misregister */
+.hero_layers.is-suppressed {
+  visibility: hidden;
+}
+
 .hero_layer {
   position: absolute;
   inset: 0;

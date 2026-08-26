@@ -235,11 +235,22 @@ function scrollAccessories(dir) {
   }
 }
 
+// The cart write queue drains serially, but a pack batch sent while an
+// earlier setLineForProduct is still in flight can be wiped by that write's
+// late server snapshot (same race class as the per-product-burst dead end).
+// Track single-line writes so selectBundle can wait them out.
+let lastLineWrite = Promise.resolve();
+function setLine(handle, variantId) {
+  const p = setLineForProduct(handle, variantId);
+  lastLineWrite = p.catch(() => null); // settled-state only — errors surface on p
+  return p;
+}
+
 function selectWrap(color) {
   const wrapHandle = config.wrap.productHandle;
-  if (!color) return setLineForProduct(wrapHandle, null);
+  if (!color) return setLine(wrapHandle, null);
   const variant = wrapVariantsByColor.get(color);
-  if (variant) setLineForProduct(wrapHandle, variant.id);
+  if (variant) setLine(wrapHandle, variant.id);
 }
 
 function toggleAccessory(handle) {
@@ -248,12 +259,12 @@ function toggleAccessory(handle) {
   const deps = config.accessoryDependencies || {};
 
   if (has) {
-    setLineForProduct(handle, null);
+    setLine(handle, null);
     // Removing a parent removes the children that require it
     const children = deps[handle]?.requiredBy || [];
     for (const child of children) {
       if (state.accessoryLines.some((l) => l.merchandise.product.handle === child)) {
-        setLineForProduct(child, null);
+        setLine(child, null);
       }
     }
     return;
@@ -272,7 +283,7 @@ function toggleAccessory(handle) {
 function addAccessory(handle) {
   const product = products.accessories.find((p) => p.handle === handle);
   const variant = firstVariant(product);
-  if (variant) setLineForProduct(handle, variant.id);
+  if (variant) setLine(handle, variant.id);
 }
 
 // Pack selection mirrors modules/bundles-ui.js: two BATCH mutations
@@ -284,6 +295,9 @@ async function selectBundle(handle) {
   if (bundleBusy) return;
   bundleBusy = true;
   try {
+    // Let any in-flight single-line write settle first — its late server
+    // snapshot would otherwise wipe this batch's lines
+    await lastLineWrite;
     const state = getState();
     const wasActive = state.activeBundle === handle;
 
@@ -445,30 +459,19 @@ function primaryAction() {
 }
 
 // Scroll nudge: first time the Payment section comes into view (deep-scroll,
-// high intent), slide up a card offering Save / talk to a rep. Once per
-// browser session.
-const NUDGE_KEY = 'olto_tesla_nudge';
-
+// high intent), slide up a card offering Save / talk to a rep. Once per page
+// LOAD — the old sessionStorage once-per-session gate meant a demo tab never
+// showed it again (Eddie: "where did the pop up go", Aug 26).
 function initNudge() {
   const nudge = app.querySelector('[data-nudge]');
   const target = app.querySelector('[data-section="payment"]');
   if (!nudge || !target) return;
-  try {
-    if (sessionStorage.getItem(NUDGE_KEY)) return;
-  } catch {
-    // Storage blocked (private mode) — fall through, worst case it shows again
-  }
   const io = new IntersectionObserver(
     (entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;
       io.disconnect();
       nudge.hidden = false;
       requestAnimationFrame(() => nudge.classList.add('is-in'));
-      try {
-        sessionStorage.setItem(NUDGE_KEY, '1');
-      } catch {
-        /* ignore */
-      }
     },
     { threshold: 0.3 }
   );
@@ -641,10 +644,11 @@ function update(state) {
     imgUrl(usImage, 1600) ||
     meta.backgroundImage;
   // Wrap photos register onto the layer canvas, so accessories composite on
-  // the wrapped bike too. Side-view shots (Sand) can't register — they yield
-  // to the base bike once layers are showing. Black has no wrap photography
-  // yet: the black-anodized base shots stand in (vinyl over the same
-  // geometry) and take accessory layers natively.
+  // the wrapped bike too. Side-view shots (Sand) can't register — the wrap
+  // photo still wins (the color must never vanish when a pack is added;
+  // Eddie's call, Aug 26) and the layers hide instead. Black has no wrap
+  // photography yet: the black-anodized base shots stand in (vinyl over the
+  // same geometry) and take accessory layers natively.
   let wrapImage = state.wrapLine ? wrapVariantsByColor.get(wrapColor)?.image?.url : null;
   let wrapComposites = wrapImage && !NON_COMPOSITE_WRAPS.has(wrapColor);
   if (state.wrapLine && wrapColor === 'Black') {
@@ -659,7 +663,11 @@ function update(state) {
   // Custom has no photography at all (its variant image is a placeholder) —
   // the silver base bike stands in
   if (wrapColor === 'Custom') wrapImage = null;
-  if (wrapImage && (wrapComposites || !anyLayerOn)) {
+  // Non-composite wrap showing → its layers would misregister; hide them
+  app
+    .querySelector('[data-layers]')
+    ?.classList.toggle('is-suppressed', Boolean(wrapImage) && !wrapComposites && anyLayerOn);
+  if (wrapImage) {
     crossfadeHero(wrapImage, `wrap:${wrapColor}`);
   } else {
     crossfadeHero(baseImage, `base:${state.baseNumericId}:${regionKey}`);
@@ -677,6 +685,18 @@ function update(state) {
     el.textContent = has ? 'Added' : 'Add';
     el.classList.toggle('is-added', has);
     el.closest('[data-acc]')?.classList.toggle('is-added', has);
+  }
+  // Un-added items lead the row; added ones move to the end (stable sort
+  // keeps catalog order within each group) — Eddie's call, Aug 26
+  const accList = app.querySelector('[data-acc-list]');
+  if (accList) {
+    const cards = [...accList.querySelectorAll('.acc')];
+    const sorted = [...cards].sort(
+      (a, b) => (added.has(a.dataset.acc) ? 1 : 0) - (added.has(b.dataset.acc) ? 1 : 0)
+    );
+    if (cards.some((el, i) => el !== sorted[i])) {
+      for (const el of sorted) accList.appendChild(el);
+    }
   }
 
   // Quantity
