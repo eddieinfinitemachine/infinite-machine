@@ -239,7 +239,7 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       ${buildKitsSection(products)}
 
       <section class="opt opt--acc" data-section="accessories">
-        <h2 class="opt_title">Accessories</h2>
+        <h2 class="opt_title">Additional Accessories</h2>
         <div class="acc-nav">
           <button type="button" class="acc-nav_btn" data-acc-scroll="-1" aria-label="Scroll accessories back">&#8249;</button>
           <button type="button" class="acc-nav_btn" data-acc-scroll="1" aria-label="Scroll accessories forward">&#8250;</button>
@@ -387,6 +387,7 @@ function buildColorSection(config, variants, wrapVariantsByColor) {
           <div class="swatch_sub">Ships now</div>
         </div>
         <div class="swatch-box">
+          <div class="swatch-box_label">Vinyl wrap</div>
           ${wrapOrder
             .map((color) => {
               const price = parseFloat(wrapVariantsByColor.get(color).price.amount);
