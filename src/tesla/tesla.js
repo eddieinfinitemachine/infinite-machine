@@ -17,6 +17,7 @@ import {
   startNewConfigSession,
   updateLine,
 } from '../lib/cart.js';
+import { client } from '../lib/client.js';
 import { fetchProducts } from '../lib/products.js';
 import {
   getState,
@@ -72,6 +73,7 @@ async function boot() {
     renderBootError();
     return;
   }
+  await addKitOnlyProducts();
 
   // Same matching rule as modules/wrap-orchestration.js — the wrap product
   // has one variant per color, keyed by a "Color(s)" option.
@@ -119,6 +121,22 @@ async function boot() {
   }
 }
 
+// The Bottom Cover sells but lives outside the accessories collection, so
+// fetchProducts never sees it — pull it directly for the Commuter kit
+// (Eddie, Aug 26). It joins products.accessories for pricing/cart lookups
+// but stays out of the Accessories row (ROW_HIDDEN in ui.js — no photos).
+async function addKitOnlyProducts() {
+  try {
+    const { data } = await client.request(
+      `query { product(handle: "bottom-cover") { id handle title availableForSale featuredImage { url altText } variants(first: 5) { edges { node { id title availableForSale price { amount currencyCode } selectedOptions { name value } image { url altText } } } } } }`
+    );
+    const p = data?.product;
+    if (p) products.accessories.push({ ...p, variants: p.variants.edges.map((e) => e.node) });
+  } catch (err) {
+    console.warn('[Tesla] Kit-only product fetch failed:', err); // Commuter just omits it
+  }
+}
+
 function buildWrapVariantMap(wrap) {
   const map = new Map();
   if (!wrap) return map;
@@ -144,10 +162,6 @@ function renderBootError() {
 
 function bindEvents() {
   app.addEventListener('click', (e) => {
-    // Custom color opens its form first — the wrap is added on submit
-    if (e.target.closest('[data-custom-open]')) return toggleCustomModal(true);
-    if (e.target.closest('[data-custom-close]')) return toggleCustomModal(false);
-
     // Consolidated Color row: '' = Silver (bare base), anything else = a wrap
     const colorSwatch = e.target.closest('[data-color-swatch]');
     if (colorSwatch) return selectWrap(colorSwatch.dataset.colorSwatch);
@@ -190,10 +204,6 @@ function bindEvents() {
       e.preventDefault();
       submitSaveForm(e.target);
     }
-    if (e.target.closest('[data-custom-form]')) {
-      e.preventDefault();
-      submitCustomForm(e.target);
-    }
   });
 }
 
@@ -222,45 +232,6 @@ function scrollAccessories(dir) {
     });
   } else {
     list.scrollLeft = target;
-  }
-}
-
-function toggleCustomModal(open) {
-  const modal = app.querySelector('[data-custom-modal]');
-  if (!modal) return;
-  modal.hidden = !open;
-  if (open) {
-    const error = modal.querySelector('[data-custom-error]');
-    if (error) error.hidden = true;
-    modal.querySelector('input[name="color"]')?.focus();
-  }
-}
-
-async function submitCustomForm(form) {
-  const note = form.color.value.trim();
-  const error = form.querySelector('[data-custom-error]');
-  if (!note) {
-    if (error) {
-      error.textContent = 'Tell us the color you have in mind.';
-      error.hidden = false;
-    }
-    return;
-  }
-  if (error) error.hidden = true;
-  toggleCustomModal(false);
-
-  // setLineForProduct can't carry attributes, so swap the wrap line via the
-  // batch path — the requested color rides to checkout as a line attribute.
-  const variant = wrapVariantsByColor.get('Custom');
-  if (!variant) return;
-  try {
-    const { wrapLine } = getState();
-    if (wrapLine && !String(wrapLine.id).startsWith('tmp_')) {
-      await removeLines([wrapLine.id]);
-    }
-    await addLines([{ variantId: variant.id, attributes: { _custom_color: note } }]);
-  } catch (err) {
-    console.error('[Tesla] Custom wrap failed:', err);
   }
 }
 
@@ -694,13 +665,9 @@ function update(state) {
     crossfadeHero(baseImage, `base:${state.baseNumericId}:${regionKey}`);
   }
 
-  // Bundles — "No bundle" is active whenever no accessories are staged
+  // Bundles
   for (const el of app.querySelectorAll('[data-bundle]')) {
-    const isNone = el.dataset.bundle === 'none';
-    el.classList.toggle(
-      'is-selected',
-      isNone ? state.accessoryLines.length === 0 : el.dataset.bundle === state.activeBundle
-    );
+    el.classList.toggle('is-selected', el.dataset.bundle === state.activeBundle);
   }
 
   // Accessories

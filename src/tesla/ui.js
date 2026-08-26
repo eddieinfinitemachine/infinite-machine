@@ -91,21 +91,20 @@ export function paymentFigures(total, currency, mode) {
 // TODO(eddie): Cargo/Max tier prices are placeholders — confirm. The meeting
 // also wanted the cover in bundles; no sellable cover product exists yet.
 export const KITS = [
-  // "No bundle" is the default: nothing staged, accessories à la carte
-  {
-    key: 'none',
-    label: 'No bundle',
-    tagline: 'Pick accessories individually.',
-    price: 0,
-    items: [],
-  },
   {
     key: 'commuter',
     label: 'Olto Commuter',
     tagline: 'Everything you need to commute every day.',
     popular: true,
     price: 200,
-    items: ['olto-sidewalls', 'olto-charging-dock', 'olto-phone-mount', 'olto-water-bottle-holder'],
+    items: [
+      'olto-sidewalls',
+      'olto-charging-dock',
+      'olto-phone-mount',
+      'olto-water-bottle-holder',
+      'open-face-helmet',
+      'bottom-cover',
+    ],
   },
   {
     key: 'cargo',
@@ -146,6 +145,9 @@ export const KITS = [
     ],
   },
 ];
+
+// Bundle-only products (no photography) stay out of the Accessories row
+const ROW_HIDDEN = new Set(['bottom-cover']);
 
 // TODO(eddie): confirm spec figures for the stat row
 const STATS = [
@@ -243,7 +245,10 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <button type="button" class="acc-nav_btn" data-acc-scroll="1" aria-label="Scroll accessories forward">&#8250;</button>
         </div>
         <div class="acc-list" data-acc-list>
-          ${products.accessories.map((p) => buildAccessoryCard(p)).join('')}
+          ${products.accessories
+            .filter((p) => !ROW_HIDDEN.has(p.handle))
+            .map((p) => buildAccessoryCard(p))
+            .join('')}
         </div>
       </section>
 
@@ -351,27 +356,6 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       </div>
     </div>
 
-    <div class="modal" data-custom-modal hidden>
-      <div class="modal_backdrop" data-custom-close></div>
-      <div class="modal_sheet">
-        <form data-custom-form novalidate>
-          <h3 class="modal_title">Custom color</h3>
-          <p class="modal_body">
-            Tell us the color you want &mdash; a name, a hex code, anything we can
-            match. It rides along with your order.
-          </p>
-          <input
-            class="saveform_field"
-            type="text"
-            name="color"
-            placeholder="Your color &mdash; e.g. Miami teal, #00CED1"
-          />
-          <p class="saveform_error" data-custom-error hidden></p>
-          <button type="submit" class="modal_cta">Add custom wrap</button>
-          <button type="button" class="modal_close" data-custom-close>Close</button>
-        </form>
-      </div>
-    </div>
   `;
 }
 
@@ -420,24 +404,6 @@ function buildColorSection(config, variants, wrapVariantsByColor) {
           </div>`;
             })
             .join('')}
-          ${
-            wrapVariantsByColor.has('Custom')
-              ? `
-          <div class="swatch-opt">
-            <button
-              type="button"
-              class="swatch swatch--custom"
-              data-color-swatch="Custom"
-              data-custom-open
-              aria-label="Custom color"
-            ></button>
-            <div class="swatch_name">Custom</div>
-            <div class="swatch_sub">+${formatMoney(
-              parseFloat(wrapVariantsByColor.get('Custom').price.amount)
-            )}</div>
-          </div>`
-              : ''
-          }
         </div>
       </div>
     </section>
