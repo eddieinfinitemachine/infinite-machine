@@ -79,6 +79,71 @@ export function paymentFigures(total, currency, mode) {
   };
 }
 
+// Bundles — page-defined per the Aug 26 meeting (Eddie + Obie): contents,
+// taglines, and tier prices live here, NOT in the Shopify metaobjects (those
+// still feed the live configurator and stay untouched). "Save" = summed item
+// value minus the tier price. NOTE: the demo cart still charges full
+// per-item prices — real bundle pricing needs Shopify discounts/bundle
+// products before go-live.
+// TODO(eddie): Cargo/Max tier prices are placeholders — confirm. The meeting
+// also wanted the cover in bundles; no sellable cover product exists yet.
+export const KITS = [
+  {
+    key: 'olto',
+    label: 'Olto',
+    tagline: 'Ready to ride.',
+    price: 0,
+    includes: ['Olto', 'Battery Charger', 'Internet Module'],
+    items: [],
+  },
+  {
+    key: 'commuter',
+    label: 'Olto Commuter',
+    tagline: 'Everything you need to commute every day.',
+    popular: true,
+    price: 200,
+    items: ['olto-sidewalls', 'olto-charging-dock', 'olto-phone-mount', 'olto-water-bottle-holder'],
+  },
+  {
+    key: 'cargo',
+    label: 'Olto Cargo',
+    tagline: 'Carry everything.',
+    price: 700,
+    items: [
+      'olto-sidewalls',
+      'olto-charging-dock',
+      'olto-phone-mount',
+      'charger-bag',
+      'olto-rear-rack',
+      'olto-rear-basket',
+      'olto-soft-bag',
+      'olto-side-mounting-plate',
+      'accessory-plate',
+      'olto-center-stand',
+    ],
+  },
+  {
+    key: 'max',
+    label: 'Olto Max',
+    tagline: 'Fully loaded. Full power.',
+    price: 950,
+    items: [
+      'olto-sidewalls',
+      'olto-charging-dock',
+      'olto-phone-mount',
+      'olto-water-bottle-holder',
+      'charger-bag',
+      'olto-rear-rack',
+      'olto-rear-basket',
+      'olto-soft-bag',
+      'olto-side-mounting-plate',
+      'accessory-plate',
+      'olto-center-stand',
+      'olto-super-charger',
+    ],
+  },
+];
+
 // TODO(eddie): confirm spec figures for the stat row
 const STATS = [
   { value: '40 mi', label: 'Range (est.)' },
@@ -110,7 +175,7 @@ export function imgUrl(url, width) {
   return `${url}${url.includes('?') ? '&' : '?'}width=${width}`;
 }
 
-export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
+export function buildPage({ config, products, wrapVariantsByColor }) {
   const variants = Object.entries(config.variants); // [numericId, meta]
   const [defaultId] = variants.find(([id]) => id === config.defaultVariantId) || variants[0];
 
@@ -164,54 +229,9 @@ export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
         </div>
       </section>
 
-      <section class="opt" data-section="paint">
-        <h2 class="opt_title">Base Material</h2>
-        <div class="swatches">
-          ${variants
-            .map(
-              ([id, meta]) => `
-            <button
-              type="button"
-              class="swatch"
-              data-base-swatch="${esc(id)}"
-              style="--swatch: ${esc(meta.colorHex)}"
-              aria-label="${esc(meta.color)}"
-            ></button>`
-            )
-            .join('')}
-        </div>
-        <div class="opt_meta">
-          <span class="opt_name" data-base-name></span>
-          <span class="opt_price">Included</span>
-        </div>
-      </section>
+      ${buildColorSection(config, variants, wrapVariantsByColor)}
 
-      <section class="opt" data-section="wrap">
-        <h2 class="opt_title">Wrap</h2>
-        <p class="opt_sub">Factory-applied color wrap</p>
-        <div class="swatches">
-          <button type="button" class="swatch swatch--none" data-wrap-swatch="" aria-label="No wrap"></button>
-          ${Object.entries(config.wrapColorMap)
-            .filter(([color]) => wrapVariantsByColor.has(color))
-            .map(
-              ([color, hex]) => `
-            <button
-              type="button"
-              class="swatch"
-              data-wrap-swatch="${esc(color)}"
-              style="--swatch: ${esc(hex)}"
-              aria-label="${esc(color)} wrap"
-            ></button>`
-            )
-            .join('')}
-        </div>
-        <div class="opt_meta">
-          <span class="opt_name" data-wrap-name></span>
-          <span class="opt_price" data-wrap-price></span>
-        </div>
-      </section>
-
-      ${buildBundlesSection(bundles, products)}
+      ${buildKitsSection(products, basePrice)}
 
       <section class="opt" data-section="accessories">
         <h2 class="opt_title">Accessories</h2>
@@ -326,43 +346,99 @@ export function buildPage({ config, products, bundles, wrapVariantsByColor }) {
   `;
 }
 
-function buildBundlesSection(bundles, products) {
-  if (!bundles?.length) return '';
+// One consolidated Color section (Aug 26 meeting): Silver anodized is the
+// only base finish; every other color — Black included — is a vinyl wrap
+// variant of the wrap product. The sub-line is the "it's a wrap, not paint"
+// distinction Eddie asked for.
+function buildColorSection(config, variants, wrapVariantsByColor) {
+  const silverMeta = variants.find(([, m]) => /silver/i.test(m.color))?.[1];
+  const blackMeta = variants.find(([, m]) => /black/i.test(m.color))?.[1];
+  const hexes = { ...config.wrapColorMap, Black: blackMeta?.colorHex || '#1c1c1e' };
+  const wrapOrder = ['Black', 'Sand', 'Blush', 'Forest', 'Crimson'].filter((c) =>
+    wrapVariantsByColor.has(c)
+  );
   return `
-    <section class="opt" data-section="bundles">
-      <h2 class="opt_title">Accessory Pack</h2>
-      <p class="opt_sub">Curated sets — tap again to remove</p>
-      <div class="bundle-list">
-        ${bundles.map((b) => buildBundleCard(b, products)).join('')}
+    <section class="opt" data-section="color">
+      <h2 class="opt_title">Color</h2>
+      <p class="opt_sub">Silver anodized finish. Vinyl wrap on top of the aluminum.</p>
+      <div class="swatches swatches--labeled">
+        <div class="swatch-opt">
+          <button
+            type="button"
+            class="swatch"
+            data-color-swatch=""
+            style="--swatch: ${esc(silverMeta?.colorHex || '#d7d7d7')}"
+            aria-label="Silver"
+          ></button>
+          <div class="swatch_name">Silver</div>
+          <div class="swatch_sub">Ships now</div>
+        </div>
+        ${wrapOrder
+          .map((color) => {
+            const price = parseFloat(wrapVariantsByColor.get(color).price.amount);
+            return `
+        <div class="swatch-opt">
+          <button
+            type="button"
+            class="swatch"
+            data-color-swatch="${esc(color)}"
+            style="--swatch: ${esc(hexes[color])}"
+            aria-label="${esc(color)} vinyl wrap"
+          ></button>
+          <div class="swatch_name">${esc(color)}</div>
+          <div class="swatch_sub">+${formatMoney(price)}</div>
+        </div>`;
+          })
+          .join('')}
       </div>
     </section>
   `;
 }
 
-function buildBundleCard(bundle, products) {
-  const members = bundle.products || [];
-  const price = members.reduce((sum, m) => {
-    const full = products.accessories.find((p) => p.handle === m.handle);
-    const v = firstVariant(full);
+function buildKitsSection(products, basePrice) {
+  return `
+    <section class="opt" data-section="bundles">
+      <h2 class="opt_title">Bundle</h2>
+      <div class="kit-list">
+        ${KITS.map((k) => buildKitCard(k, products, basePrice)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function buildKitCard(kit, products, basePrice) {
+  const value = kit.items.reduce((sum, h) => {
+    const v = firstVariant(products.accessories.find((p) => p.handle === h));
     return sum + (v ? parseFloat(v.price.amount) : 0);
   }, 0);
-  const thumbs = members
-    .slice(0, 4)
-    .map(
-      (m) =>
-        `<img class="bundle_thumb" src="${esc(
-          imgUrl(m.featuredImage?.url, 96)
-        )}" alt="" loading="lazy" />`
-    )
-    .join('');
+  const save = value - kit.price;
+  const names =
+    kit.includes ||
+    kit.items.map((h) => {
+      const p = products.accessories.find((a) => a.handle === h);
+      return (p?.title || h).replace(/^Olto /, '');
+    });
+  const pricing = kit.items.length
+    ? `<div class="kit_price">+${formatMoney(kit.price)}</div>
+       ${
+         save > 0
+           ? `<div class="kit_save"><s>${formatMoney(value)}</s> Save ${formatMoney(save)}</div>`
+           : ''
+       }`
+    : `<div class="kit_price">${formatMoney(basePrice)}</div>`;
   return `
-    <button type="button" class="bundle" data-bundle="${esc(bundle.handle)}">
-      <div class="bundle_thumbs">${thumbs}</div>
-      <div class="bundle_info">
-        <div class="bundle_name">${esc(bundle.label || bundle.handle)}</div>
-        <div class="bundle_count">${members.length} items</div>
+    <button type="button" class="kit" data-bundle="${esc(kit.key)}">
+      ${kit.popular ? '<span class="kit_chip">Most popular</span>' : ''}
+      <div class="kit_top">
+        <div class="kit_id">
+          <div class="kit_name">${esc(kit.label)}</div>
+          <div class="kit_tagline">${esc(kit.tagline)}</div>
+        </div>
+        <div class="kit_pricing">${pricing}</div>
       </div>
-      <div class="bundle_price">${formatMoney(price)}</div>
+      <div class="kit_items">
+        ${names.map((n) => `<span class="kit_item">${esc(n)}</span>`).join('')}
+      </div>
     </button>
   `;
 }

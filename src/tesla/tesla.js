@@ -5,7 +5,6 @@
 import './tesla.css';
 
 import config from '../configs/olto.js';
-import { fetchBundles } from '../lib/bundles.js';
 import {
   addLines,
   getCheckoutUrl,
@@ -35,6 +34,7 @@ import {
   firstVariant,
   formatMoney,
   imgUrl,
+  KITS,
   paymentFigures,
 } from './ui.js';
 
@@ -44,7 +44,6 @@ if (gsap && window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
 const app = document.querySelector('#app');
 
 let products = null;
-let bundles = [];
 let wrapVariantsByColor = new Map();
 let heroActive = 'a';
 let heroShownKey = null;
@@ -60,15 +59,19 @@ let totalTween = null;
 boot();
 
 async function boot() {
+  // One base color (Aug 26 meeting): Silver anodized is the only finish —
+  // Black sells as a vinyl wrap now — so Silver becomes the default variant
+  // (the upstream config still defaults to Black for the live site).
+  const silverId = Object.entries(config.variants).find(([, m]) => /silver/i.test(m.color))?.[0];
+  if (silverId) config.defaultVariantId = silverId;
+
   try {
-    [products, bundles] = await Promise.all([fetchProducts(config), fetchBundles(config)]);
+    products = await fetchProducts(config);
   } catch (err) {
     console.error('[Tesla] Failed to load products:', err);
     renderBootError();
     return;
   }
-
-  bundles = tuneBundles(bundles);
 
   // Same matching rule as modules/wrap-orchestration.js — the wrap product
   // has one variant per color, keyed by a "Color(s)" option.
@@ -76,9 +79,17 @@ async function boot() {
 
   setProducts(products);
   await initCart(config);
-  initState({ config, products, bundles });
+  // KITS (page-defined bundles) feed the store's exact-set active detection
+  initState({
+    config,
+    products,
+    bundles: KITS.filter((k) => k.items.length).map((k) => ({
+      handle: k.key,
+      products: k.items.map((h) => ({ handle: h })),
+    })),
+  });
 
-  app.innerHTML = buildPage({ config, products, bundles, wrapVariantsByColor });
+  app.innerHTML = buildPage({ config, products, wrapVariantsByColor });
   bindEvents();
   subscribe(update);
   update(getState());
@@ -108,21 +119,6 @@ async function boot() {
   }
 }
 
-// Page-level merchandising (Eddie's call, 2026-08-25): hide the Kids pack and
-// add the open-face helmet to Basic. The bundle metaobjects also feed the live
-// configurator, so Shopify data stays untouched — only this page's list is
-// adjusted, and it's the one handed to initState, so exact-set active
-// detection matches what's rendered (and what selectBundle batch-adds).
-function tuneBundles(list) {
-  const tuned = list.filter((b) => b.handle !== 'kids');
-  const basic = tuned.find((b) => b.handle === 'basic');
-  const helmet = products.accessories.find((p) => p.handle === 'open-face-helmet');
-  if (basic && helmet && !basic.products.some((p) => p.handle === helmet.handle)) {
-    basic.products = [...basic.products, helmet];
-  }
-  return tuned;
-}
-
 function buildWrapVariantMap(wrap) {
   const map = new Map();
   if (!wrap) return map;
@@ -148,11 +144,9 @@ function renderBootError() {
 
 function bindEvents() {
   app.addEventListener('click', (e) => {
-    const baseSwatch = e.target.closest('[data-base-swatch]');
-    if (baseSwatch) return selectBase(baseSwatch.dataset.baseSwatch);
-
-    const wrapSwatch = e.target.closest('[data-wrap-swatch]');
-    if (wrapSwatch) return selectWrap(wrapSwatch.dataset.wrapSwatch);
+    // Consolidated Color row: '' = Silver (bare base), anything else = a wrap
+    const colorSwatch = e.target.closest('[data-color-swatch]');
+    if (colorSwatch) return selectWrap(colorSwatch.dataset.colorSwatch);
 
     const accBtn = e.target.closest('[data-acc-toggle]');
     if (accBtn) return toggleAccessory(accBtn.dataset.accToggle);
@@ -192,19 +186,11 @@ function bindEvents() {
   });
 }
 
-function selectBase(numericId) {
-  setLineForProduct(products.main.handle, gidForVariant(numericId));
-}
-
 function selectWrap(color) {
   const wrapHandle = config.wrap.productHandle;
-  const current = getState().wrapLine;
   if (!color) return setLineForProduct(wrapHandle, null);
   const variant = wrapVariantsByColor.get(color);
-  if (!variant) return;
-  // Tapping the active color deselects — same as wrap-orchestration.js
-  if (current?.merchandise.id === variant.id) return setLineForProduct(wrapHandle, null);
-  setLineForProduct(wrapHandle, variant.id);
+  if (variant) setLineForProduct(wrapHandle, variant.id);
 }
 
 function toggleAccessory(handle) {
@@ -258,15 +244,14 @@ async function selectBundle(handle) {
       .filter((id) => !String(id).startsWith('tmp_'));
     if (lineIds.length) await removeLines(lineIds);
 
-    // Tapping the active pack again just clears it
-    if (wasActive) return;
+    // Tapping the active pack again just clears it; the base "Olto" kit has
+    // no items, so clearing the staged accessories was the whole action
+    const kit = KITS.find((k) => k.key === handle);
+    if (wasActive || !kit?.items.length) return;
 
-    const bundle = bundles.find((b) => b.handle === handle);
-    if (!bundle?.products?.length) return;
-
-    const items = bundle.products
-      .map((p) => {
-        const variant = firstVariant(products.accessories.find((a) => a.handle === p.handle));
+    const items = kit.items
+      .map((h) => {
+        const variant = firstVariant(products.accessories.find((a) => a.handle === h));
         // _bundle rides along for checkout-side analytics (same as upstream);
         // the UI's active state is derived from the line set, not this attribute.
         return variant ? { variantId: variant.id, attributes: { _bundle: handle } } : null;
@@ -557,18 +542,19 @@ async function detectRegion() {
 function update(state) {
   if (!state.ready) return;
 
-  // Finish (base variant)
   const meta = config.variants[state.baseNumericId] || {};
-  setText('[data-base-name]', meta.color || '');
   setText('[data-delivery]', meta.delivery ? `Est. delivery ${meta.delivery}` : '');
-  for (const el of app.querySelectorAll('[data-base-swatch]')) {
-    el.classList.toggle('is-selected', el.dataset.baseSwatch === state.baseNumericId);
-  }
 
-  // Wrap
+  // Color — one row: Silver (bare base) or the active wrap
   const wrapColor = state.wrapLine
     ? wrapColorOf(state.wrapLine.merchandise) || state.wrapLine.merchandise.title
     : '';
+  for (const el of app.querySelectorAll('[data-color-swatch]')) {
+    el.classList.toggle(
+      'is-selected',
+      state.wrapLine ? el.dataset.colorSwatch === wrapColor : el.dataset.colorSwatch === ''
+    );
+  }
 
   // On-vehicle accessory layers (same mechanism as the live configurator).
   // Combo rules from config.customImageRules swap/hide layers for specific
@@ -605,34 +591,35 @@ function update(state) {
     (regionKey === 'eu' ? meta.backgroundImage : imgUrl(usImage, 1600)) ||
     imgUrl(usImage, 1600) ||
     meta.backgroundImage;
-  // Wrap photos are registered onto the layer canvas via WRAP_PHOTO_FIT, so
-  // accessories composite on the wrapped bike too. Side-view shots (Sand)
-  // can't register — they yield to the base bike once layers are showing.
-  const wrapImage = state.wrapLine ? wrapVariantsByColor.get(wrapColor)?.image?.url : null;
-  const wrapComposites = wrapImage && !NON_COMPOSITE_WRAPS.has(wrapColor);
+  // Wrap photos register onto the layer canvas, so accessories composite on
+  // the wrapped bike too. Side-view shots (Sand) can't register — they yield
+  // to the base bike once layers are showing. Black has no wrap photography
+  // yet: the black-anodized base shots stand in (vinyl over the same
+  // geometry) and take accessory layers natively.
+  let wrapImage = state.wrapLine ? wrapVariantsByColor.get(wrapColor)?.image?.url : null;
+  let wrapComposites = wrapImage && !NON_COMPOSITE_WRAPS.has(wrapColor);
+  if (state.wrapLine && wrapColor === 'Black') {
+    const blackVariant = products.main.variants.find(
+      (v) => config.variants[numericId(v.id)]?.color === 'Black'
+    );
+    if (blackVariant?.image?.url) {
+      wrapImage = imgUrl(blackVariant.image.url, 1600);
+      wrapComposites = true;
+    }
+  }
   if (wrapImage && (wrapComposites || !anyLayerOn)) {
     crossfadeHero(wrapImage, `wrap:${wrapColor}`);
   } else {
     crossfadeHero(baseImage, `base:${state.baseNumericId}:${regionKey}`);
   }
-  setText('[data-wrap-name]', state.wrapLine ? wrapColor : 'None');
-  setText(
-    '[data-wrap-price]',
-    state.wrapLine
-      ? formatMoney(parseFloat(state.wrapLine.merchandise.price.amount), state.currency)
-      : 'Included'
-  );
-  for (const el of app.querySelectorAll('[data-wrap-swatch]')) {
-    const isNone = el.dataset.wrapSwatch === '';
+
+  // Bundles — the base "Olto" kit is active whenever no accessories are staged
+  for (const el of app.querySelectorAll('[data-bundle]')) {
+    const isBase = el.dataset.bundle === 'olto';
     el.classList.toggle(
       'is-selected',
-      state.wrapLine ? el.dataset.wrapSwatch === wrapColor : isNone
+      isBase ? state.accessoryLines.length === 0 : el.dataset.bundle === state.activeBundle
     );
-  }
-
-  // Bundles
-  for (const el of app.querySelectorAll('[data-bundle]')) {
-    el.classList.toggle('is-selected', el.dataset.bundle === state.activeBundle);
   }
 
   // Accessories
