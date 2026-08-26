@@ -197,6 +197,44 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       <div class="topbar_mark">${WORDMARK_SVG}</div>
     </header>
 
+    <!-- Wide-desktop left rail (live-site configurator layout); hidden on
+         mobile/tablet. [data-summary]/[data-summary-total]/[data-config-reset]
+         are duplicated from the sheet — the render helpers update every match. -->
+    <aside class="rail" aria-label="Olto specifications">
+      <div class="rail_mark">
+        ${WORDMARK_SVG}
+        <div class="rail_olto">${OLTO_WORDMARK_SVG}</div>
+      </div>
+      <div class="rail_facts">
+        <div class="rail_row">
+          <span class="rail_key">Shipping</span>
+          <span class="rail_val rail_val--ship"><span data-rail-delivery>Now</span><span class="rail_dot"></span></span>
+        </div>
+        <div class="rail_row">
+          <span class="rail_key">Starting at</span>
+          <span class="rail_val">${formatMoney(basePrice)}</span>
+        </div>
+      </div>
+      <div class="rail_block">
+        <h3 class="rail_heading">Included as standard</h3>
+        <ul class="rail_list">
+          <li>Olto</li>
+          <li>Battery</li>
+          <li>Charger</li>
+          <li>Internet Module</li>
+        </ul>
+      </div>
+      <div class="rail_block rail_block--config">
+        <h3 class="rail_heading">Configuration</h3>
+        <div class="summary" data-summary></div>
+        <div class="summary_total">
+          <span>Total</span>
+          <span data-summary-total></span>
+        </div>
+        <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
+      </div>
+    </aside>
+
     <section class="hero" aria-label="Olto">
       <img class="hero_img is-active" data-hero-img="a" src="${esc(
         config.variants[defaultId].backgroundImage

@@ -412,28 +412,24 @@ function designUrl() {
 // the default bike. Two-tap confirm instead of window.confirm — no blocking
 // native dialog.
 let clearArmed = null;
+function setClearButtons(text, armed) {
+  for (const btn of app.querySelectorAll('[data-config-reset]')) {
+    btn.textContent = text;
+    btn.classList.toggle('is-armed', armed);
+  }
+}
 async function clearConfiguration() {
-  const btn = app.querySelector('[data-config-reset]');
   if (!clearArmed) {
-    if (btn) {
-      btn.textContent = 'Tap again to clear';
-      btn.classList.add('is-armed');
-    }
+    setClearButtons('Tap again to clear', true);
     clearArmed = setTimeout(() => {
       clearArmed = null;
-      if (btn) {
-        btn.textContent = 'Clear configuration';
-        btn.classList.remove('is-armed');
-      }
+      setClearButtons('Clear configuration', false);
     }, 3000);
     return;
   }
   clearTimeout(clearArmed);
   clearArmed = null;
-  if (btn) {
-    btn.textContent = 'Clear configuration';
-    btn.classList.remove('is-armed');
-  }
+  setClearButtons('Clear configuration', false);
   try {
     await removeConfig(getCurrentConfigSessionId());
   } catch (err) {
@@ -598,6 +594,7 @@ function update(state) {
 
   const meta = config.variants[state.baseNumericId] || {};
   setText('[data-delivery]', meta.delivery ? `Est. delivery ${meta.delivery}` : '');
+  setText('[data-rail-delivery]', meta.delivery || 'Now');
 
   // Color — one row: Silver (bare base) or the active wrap
   const wrapColor = state.wrapLine
@@ -706,9 +703,11 @@ function update(state) {
   // Quantity
   setText('[data-qty-value]', String(state.quantity));
 
-  // Summary
-  const summary = app.querySelector('[data-summary]');
-  if (summary) summary.innerHTML = buildSummaryRows(state, config);
+  // Summary (sheet + desktop rail)
+  const rowsHtml = buildSummaryRows(state, config);
+  for (const summary of app.querySelectorAll('[data-summary]')) {
+    if (summary.innerHTML !== rowsHtml) summary.innerHTML = rowsHtml;
+  }
   setText('[data-summary-total]', formatMoney(state.total, state.currency));
 
   // Payment mode (Cash / Lease / Finance)
@@ -731,9 +730,12 @@ function wrapColorOf(merchandise) {
   return opt?.value || null;
 }
 
+// Applies to every match — [data-summary-total], [data-config-reset] etc.
+// exist twice (sheet + desktop rail)
 function setText(selector, text) {
-  const el = app.querySelector(selector);
-  if (el && el.textContent !== text) el.textContent = text;
+  for (const el of app.querySelectorAll(selector)) {
+    if (el.textContent !== text) el.textContent = text;
+  }
 }
 
 // IM ease: cubic-bezier(0.215, 0.61, 0.355, 1) at 450ms == easeOutCubic ==

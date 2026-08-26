@@ -1065,3 +1065,207 @@ form[data-save-form] .saveform_field:first-of-type {
     object-fit: contain;
   }
 }
+
+/* ---------- Wide desktop: three-pane, live-site configurator layout ----------
+   Left spec rail | pinned hero | scrolling options rail (Eddie, Aug 26 —
+   "like the live site on desktop, with the best practices we just designed").
+   Same fixed-positioning scheme as mobile, re-anchored per pane. */
+
+.rail {
+  display: none;
+}
+
+@media (min-width: 1140px) {
+  :root {
+    --rail-w: 292px;
+    --sheet-w: 460px;
+  }
+
+  #app {
+    max-width: none;
+  }
+
+  .topbar {
+    display: none; /* the wordmark lives in the rail */
+  }
+
+  .rail {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--rail-w);
+    z-index: 3;
+    padding: 30px 26px 32px;
+    background: var(--bg);
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+  }
+
+  /* Configuration fills the leftover rail height: the item list scrolls,
+     Total + Clear stay pinned at the rail's foot (like the live site) */
+  .rail_block--config {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .rail_block--config .summary {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+
+  .rail_mark {
+    color: var(--ink);
+  }
+
+  .rail_olto {
+    margin-top: 10px;
+  }
+
+  .rail_olto svg {
+    height: 40px;
+    width: auto;
+    display: block;
+  }
+
+  .rail_facts {
+    margin-top: 26px;
+    border-top: 1px solid var(--line);
+  }
+
+  .rail_row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+
+  .rail_key {
+    color: var(--ink-2);
+  }
+
+  .rail_val {
+    font-weight: 500;
+  }
+
+  .rail_val--ship {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .rail_dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+  }
+
+  .rail_block {
+    margin-top: 30px;
+  }
+
+  .rail_heading {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .rail_list {
+    list-style: none;
+  }
+
+  .rail_list li {
+    padding: 11px 0;
+    border-bottom: 1px solid var(--line);
+    font-size: 13.5px;
+  }
+
+  .rail_block .summary_total {
+    font-size: 13.5px;
+  }
+
+  .hero {
+    left: var(--rail-w);
+    right: var(--sheet-w);
+    transform: none;
+    width: auto;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    border-inline: 0;
+  }
+
+  .sheet {
+    top: 0;
+    left: auto;
+    right: 0;
+    transform: none;
+    width: var(--sheet-w);
+    max-width: none;
+    border-radius: 0;
+    border-inline: 0;
+    border-left: 1px solid var(--line);
+    padding-top: 30px;
+  }
+
+  .sheet_handle {
+    display: none;
+  }
+
+  /* The rail carries the wordmark, price anchor and delivery — the sheet
+     opens straight into stats + options */
+  .intro_title,
+  .intro_delivery,
+  .intro_price {
+    display: none;
+  }
+
+  /* ...and the configuration summary */
+  .opt--summary {
+    display: none;
+  }
+
+  .orderbar {
+    left: auto;
+    right: 0;
+    transform: none;
+    width: var(--sheet-w);
+    max-width: none;
+    border-left: 1px solid var(--line);
+  }
+
+  .nudge,
+  .nudge.is-in {
+    left: auto;
+    right: calc(var(--sheet-w) + 24px);
+  }
+
+  .nudge {
+    transform: translateY(14px);
+  }
+
+  .nudge.is-in {
+    transform: translateY(0);
+  }
+
+  /* Modals read as centered dialogs, not bottom sheets */
+  .modal_sheet {
+    bottom: auto;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 440px;
+    border-radius: var(--sheet-radius);
+  }
+}
