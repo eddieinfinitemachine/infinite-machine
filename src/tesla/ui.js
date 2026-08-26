@@ -17,6 +17,9 @@ export const WORDMARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 
 // NOTE: layer assets live in the site's CMS bucket (66ea2a84...), not the
 // main asset folder — URLs extracted verbatim from the live /olto/configure.
 const LAYER_CDN = 'https://cdn.prod.website-files.com/66ea2a84659b76f5d91d481b';
+// Entry order = paint order (later entries stack on top). The water bottle
+// mounts behind the translucent sidewall panel, so it must come BEFORE
+// olto-sidewalls (Eddie's Aug 26 screenshot showed it wrongly on top).
 export const ACCESSORY_LAYERS = {
   'accessory-plate': `${LAYER_CDN}/68d53a735e9c987a9499211a_accessory-plate.avif`,
   'charger-bag': `${LAYER_CDN}/68d53a2cb165eb23a2527775_charger-bag.avif`,
@@ -26,10 +29,10 @@ export const ACCESSORY_LAYERS = {
   'olto-rear-basket': `${LAYER_CDN}/68d53b6769ccc4ad6ad7d0b3_olto-rear-basket.avif`,
   'olto-rear-rack': `${LAYER_CDN}/68d53b2e1153a3e349d34c1a_olto-rear-rack.avif`,
   'olto-side-mounting-plate': `${LAYER_CDN}/68d53bea87ff421cf85c858e_olto-side-mounting-plate.avif`,
+  'olto-water-bottle-holder': `${LAYER_CDN}/68d53d46367f73dfd1b58a42_olto-water-bottle-holder.avif`,
   'olto-sidewalls': `${LAYER_CDN}/68d53c3ccb4cfb15c59ac6cd_olto-sidewalls.avif`,
   'olto-super-charger': `${LAYER_CDN}/6921a99cb5dd5b924cf4965d_Super%20Charger%20on%20the%20Ground.avif`,
   'olto-u-lock-mount': `${LAYER_CDN}/68d53cf8bb965a6129e84ff4_olto-u-lock-mount.avif`,
-  'olto-water-bottle-holder': `${LAYER_CDN}/68d53d46367f73dfd1b58a42_olto-water-bottle-holder.avif`,
   'open-face-helmet': `${LAYER_CDN}/6921a8f20583ec71e2663dce_Black%20Open%20Face%20Helmet.avif`,
   'kryptonite-lock': `${LAYER_CDN}/68d53fc0d2d8d2d151493b5f_kryptonite-lock.avif`,
   'olto-soft-bag': `${LAYER_CDN}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`,
@@ -88,12 +91,12 @@ export function paymentFigures(total, currency, mode) {
 // TODO(eddie): Cargo/Max tier prices are placeholders — confirm. The meeting
 // also wanted the cover in bundles; no sellable cover product exists yet.
 export const KITS = [
+  // "No bundle" is the default: nothing staged, accessories à la carte
   {
-    key: 'olto',
-    label: 'Olto',
-    tagline: 'Ready to ride.',
+    key: 'none',
+    label: 'No bundle',
+    tagline: 'Pick accessories individually.',
     price: 0,
-    includes: ['Olto', 'Battery Charger', 'Internet Module'],
     items: [],
   },
   {
@@ -231,11 +234,15 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
 
       ${buildColorSection(config, variants, wrapVariantsByColor)}
 
-      ${buildKitsSection(products, basePrice)}
+      ${buildKitsSection(products)}
 
-      <section class="opt" data-section="accessories">
+      <section class="opt opt--acc" data-section="accessories">
         <h2 class="opt_title">Accessories</h2>
-        <div class="acc-list">
+        <div class="acc-nav">
+          <button type="button" class="acc-nav_btn" data-acc-scroll="-1" aria-label="Scroll accessories back">&#8249;</button>
+          <button type="button" class="acc-nav_btn" data-acc-scroll="1" aria-label="Scroll accessories forward">&#8250;</button>
+        </div>
+        <div class="acc-list" data-acc-list>
           ${products.accessories.map((p) => buildAccessoryCard(p)).join('')}
         </div>
       </section>
@@ -343,6 +350,28 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
         </div>
       </div>
     </div>
+
+    <div class="modal" data-custom-modal hidden>
+      <div class="modal_backdrop" data-custom-close></div>
+      <div class="modal_sheet">
+        <form data-custom-form novalidate>
+          <h3 class="modal_title">Custom color</h3>
+          <p class="modal_body">
+            Tell us the color you want &mdash; a name, a hex code, anything we can
+            match. It rides along with your order.
+          </p>
+          <input
+            class="saveform_field"
+            type="text"
+            name="color"
+            placeholder="Your color &mdash; e.g. Miami teal, #00CED1"
+          />
+          <p class="saveform_error" data-custom-error hidden></p>
+          <button type="submit" class="modal_cta">Add custom wrap</button>
+          <button type="button" class="modal_close" data-custom-close>Close</button>
+        </form>
+      </div>
+    </div>
   `;
 }
 
@@ -373,51 +402,69 @@ function buildColorSection(config, variants, wrapVariantsByColor) {
           <div class="swatch_name">Silver</div>
           <div class="swatch_sub">Ships now</div>
         </div>
-        ${wrapOrder
-          .map((color) => {
-            const price = parseFloat(wrapVariantsByColor.get(color).price.amount);
-            return `
-        <div class="swatch-opt">
-          <button
-            type="button"
-            class="swatch"
-            data-color-swatch="${esc(color)}"
-            style="--swatch: ${esc(hexes[color])}"
-            aria-label="${esc(color)} vinyl wrap"
-          ></button>
-          <div class="swatch_name">${esc(color)}</div>
-          <div class="swatch_sub">+${formatMoney(price)}</div>
-        </div>`;
-          })
-          .join('')}
+        <div class="swatch-box">
+          ${wrapOrder
+            .map((color) => {
+              const price = parseFloat(wrapVariantsByColor.get(color).price.amount);
+              return `
+          <div class="swatch-opt">
+            <button
+              type="button"
+              class="swatch"
+              data-color-swatch="${esc(color)}"
+              style="--swatch: ${esc(hexes[color])}"
+              aria-label="${esc(color)} vinyl wrap"
+            ></button>
+            <div class="swatch_name">${esc(color)}</div>
+            <div class="swatch_sub">+${formatMoney(price)}</div>
+          </div>`;
+            })
+            .join('')}
+          ${
+            wrapVariantsByColor.has('Custom')
+              ? `
+          <div class="swatch-opt">
+            <button
+              type="button"
+              class="swatch swatch--custom"
+              data-color-swatch="Custom"
+              data-custom-open
+              aria-label="Custom color"
+            ></button>
+            <div class="swatch_name">Custom</div>
+            <div class="swatch_sub">+${formatMoney(
+              parseFloat(wrapVariantsByColor.get('Custom').price.amount)
+            )}</div>
+          </div>`
+              : ''
+          }
+        </div>
       </div>
     </section>
   `;
 }
 
-function buildKitsSection(products, basePrice) {
+function buildKitsSection(products) {
   return `
     <section class="opt" data-section="bundles">
       <h2 class="opt_title">Bundle</h2>
       <div class="kit-list">
-        ${KITS.map((k) => buildKitCard(k, products, basePrice)).join('')}
+        ${KITS.map((k) => buildKitCard(k, products)).join('')}
       </div>
     </section>
   `;
 }
 
-function buildKitCard(kit, products, basePrice) {
+function buildKitCard(kit, products) {
   const value = kit.items.reduce((sum, h) => {
     const v = firstVariant(products.accessories.find((p) => p.handle === h));
     return sum + (v ? parseFloat(v.price.amount) : 0);
   }, 0);
   const save = value - kit.price;
-  const names =
-    kit.includes ||
-    kit.items.map((h) => {
-      const p = products.accessories.find((a) => a.handle === h);
-      return (p?.title || h).replace(/^Olto /, '');
-    });
+  const names = kit.items.map((h) => {
+    const p = products.accessories.find((a) => a.handle === h);
+    return (p?.title || h).replace(/^Olto /, '');
+  });
   const pricing = kit.items.length
     ? `<div class="kit_price">+${formatMoney(kit.price)}</div>
        ${
@@ -425,7 +472,7 @@ function buildKitCard(kit, products, basePrice) {
            ? `<div class="kit_save"><s>${formatMoney(value)}</s> Save ${formatMoney(save)}</div>`
            : ''
        }`
-    : `<div class="kit_price">${formatMoney(basePrice)}</div>`;
+    : '';
   return `
     <button type="button" class="kit" data-bundle="${esc(kit.key)}">
       ${kit.popular ? '<span class="kit_chip">Most popular</span>' : ''}
@@ -436,9 +483,13 @@ function buildKitCard(kit, products, basePrice) {
         </div>
         <div class="kit_pricing">${pricing}</div>
       </div>
-      <div class="kit_items">
-        ${names.map((n) => `<span class="kit_item">${esc(n)}</span>`).join('')}
-      </div>
+      ${
+        names.length
+          ? `<div class="kit_items">${names
+              .map((n) => `<span class="kit_item">${esc(n)}</span>`)
+              .join('')}</div>`
+          : ''
+      }
     </button>
   `;
 }

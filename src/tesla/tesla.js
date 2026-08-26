@@ -144,9 +144,16 @@ function renderBootError() {
 
 function bindEvents() {
   app.addEventListener('click', (e) => {
+    // Custom color opens its form first — the wrap is added on submit
+    if (e.target.closest('[data-custom-open]')) return toggleCustomModal(true);
+    if (e.target.closest('[data-custom-close]')) return toggleCustomModal(false);
+
     // Consolidated Color row: '' = Silver (bare base), anything else = a wrap
     const colorSwatch = e.target.closest('[data-color-swatch]');
     if (colorSwatch) return selectWrap(colorSwatch.dataset.colorSwatch);
+
+    const accScroll = e.target.closest('[data-acc-scroll]');
+    if (accScroll) return scrollAccessories(Number(accScroll.dataset.accScroll));
 
     const accBtn = e.target.closest('[data-acc-toggle]');
     if (accBtn) return toggleAccessory(accBtn.dataset.accToggle);
@@ -183,7 +190,78 @@ function bindEvents() {
       e.preventDefault();
       submitSaveForm(e.target);
     }
+    if (e.target.closest('[data-custom-form]')) {
+      e.preventDefault();
+      submitCustomForm(e.target);
+    }
   });
+}
+
+let accScrollTween = null;
+function scrollAccessories(dir) {
+  const list = app.querySelector('[data-acc-list]');
+  if (!list) return;
+  // Two cards per tap (150px card + 10px gap). Native smooth scrollBy
+  // no-ops on this container in Chrome, and GSAP can't tween scrollLeft on a
+  // DOM target without ScrollToPlugin (CSSPlugin swallows it) — so tween a
+  // proxy object, same pattern as updateTotal. 0.45s IM ease as everywhere.
+  const from = list.scrollLeft;
+  const target = Math.max(0, Math.min(list.scrollWidth - list.clientWidth, from + dir * 320));
+  // Same document.hidden guard as updateTotal: rAF pauses in background
+  // tabs, which would freeze the tween at frame 0
+  if (gsap && !document.hidden) {
+    if (accScrollTween) accScrollTween.kill();
+    const obj = { v: from };
+    accScrollTween = gsap.to(obj, {
+      v: target,
+      duration: 0.45,
+      ease: 'power2.out',
+      onUpdate: () => {
+        list.scrollLeft = obj.v;
+      },
+    });
+  } else {
+    list.scrollLeft = target;
+  }
+}
+
+function toggleCustomModal(open) {
+  const modal = app.querySelector('[data-custom-modal]');
+  if (!modal) return;
+  modal.hidden = !open;
+  if (open) {
+    const error = modal.querySelector('[data-custom-error]');
+    if (error) error.hidden = true;
+    modal.querySelector('input[name="color"]')?.focus();
+  }
+}
+
+async function submitCustomForm(form) {
+  const note = form.color.value.trim();
+  const error = form.querySelector('[data-custom-error]');
+  if (!note) {
+    if (error) {
+      error.textContent = 'Tell us the color you have in mind.';
+      error.hidden = false;
+    }
+    return;
+  }
+  if (error) error.hidden = true;
+  toggleCustomModal(false);
+
+  // setLineForProduct can't carry attributes, so swap the wrap line via the
+  // batch path — the requested color rides to checkout as a line attribute.
+  const variant = wrapVariantsByColor.get('Custom');
+  if (!variant) return;
+  try {
+    const { wrapLine } = getState();
+    if (wrapLine && !String(wrapLine.id).startsWith('tmp_')) {
+      await removeLines([wrapLine.id]);
+    }
+    await addLines([{ variantId: variant.id, attributes: { _custom_color: note } }]);
+  } catch (err) {
+    console.error('[Tesla] Custom wrap failed:', err);
+  }
 }
 
 function selectWrap(color) {
@@ -607,18 +685,21 @@ function update(state) {
       wrapComposites = true;
     }
   }
+  // Custom has no photography at all (its variant image is a placeholder) —
+  // the silver base bike stands in
+  if (wrapColor === 'Custom') wrapImage = null;
   if (wrapImage && (wrapComposites || !anyLayerOn)) {
     crossfadeHero(wrapImage, `wrap:${wrapColor}`);
   } else {
     crossfadeHero(baseImage, `base:${state.baseNumericId}:${regionKey}`);
   }
 
-  // Bundles — the base "Olto" kit is active whenever no accessories are staged
+  // Bundles — "No bundle" is active whenever no accessories are staged
   for (const el of app.querySelectorAll('[data-bundle]')) {
-    const isBase = el.dataset.bundle === 'olto';
+    const isNone = el.dataset.bundle === 'none';
     el.classList.toggle(
       'is-selected',
-      isBase ? state.accessoryLines.length === 0 : el.dataset.bundle === state.activeBundle
+      isNone ? state.accessoryLines.length === 0 : el.dataset.bundle === state.activeBundle
     );
   }
 
