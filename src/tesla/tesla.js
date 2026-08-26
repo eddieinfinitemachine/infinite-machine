@@ -182,13 +182,8 @@ function bindEvents() {
     if (e.target.closest('[data-qty-inc]')) return changeQty(1);
 
     if (e.target.closest('[data-save]')) {
-      if (getStoredLead()) {
-        // Already identified — quick save, no form. Saving from the nudge
-        // confirms ("Link copied") then dismisses it.
-        if (e.target.closest('[data-nudge]')) setTimeout(hideNudge, 2200);
-        return saveConfiguration();
-      }
-      // First save: the lead form takes over (the nudge would stack under it)
+      // Every save goes through the form (Eddie, Aug 26) — a returning
+      // visitor gets it prefilled from their stored lead
       if (e.target.closest('[data-nudge]')) hideNudge();
       return toggleSaveModal(true);
     }
@@ -289,28 +284,39 @@ function addAccessory(handle) {
 // Pack selection mirrors modules/bundles-ui.js: two BATCH mutations
 // (removeLines then addLines) instead of a per-product burst — a burst takes
 // seconds to drain through the write queue and the card state flickers the
-// whole way. A busy guard swallows double-taps during the ~1s round trip.
+// whole way. The awaited round trips take ~1-2s, so the tapped card is
+// highlighted optimistically (pendingBundleView, read by update()) and a tap
+// landing mid-flight queues up instead of being swallowed — latest tap wins.
 let bundleBusy = false;
+let bundleQueued = null;
+let pendingBundleView = null; // { value: handle|null } while a selection is in flight
 async function selectBundle(handle) {
-  if (bundleBusy) return;
+  if (bundleBusy) {
+    if (handle !== pendingBundleView?.value) {
+      bundleQueued = handle;
+      pendingBundleView = { value: handle };
+      update(getState());
+    }
+    return;
+  }
   bundleBusy = true;
+  // Tapping the active pack again just clears it
+  const intent = getState().activeBundle === handle ? null : handle;
+  pendingBundleView = { value: intent };
+  update(getState());
   try {
     // Let any in-flight single-line write settle first — its late server
     // snapshot would otherwise wipe this batch's lines
     await lastLineWrite;
-    const state = getState();
-    const wasActive = state.activeBundle === handle;
 
     // Selecting a pack replaces the currently-staged accessories
-    const lineIds = state.accessoryLines
-      .map((l) => l.id)
+    const lineIds = getState()
+      .accessoryLines.map((l) => l.id)
       .filter((id) => !String(id).startsWith('tmp_'));
     if (lineIds.length) await removeLines(lineIds);
 
-    // Tapping the active pack again just clears it; the base "Olto" kit has
-    // no items, so clearing the staged accessories was the whole action
     const kit = KITS.find((k) => k.key === handle);
-    if (wasActive || !kit?.items.length) return;
+    if (!intent || !kit?.items.length) return;
 
     const items = kit.items
       .map((h) => {
@@ -325,6 +331,14 @@ async function selectBundle(handle) {
     console.error('[Tesla] Bundle select failed:', err);
   } finally {
     bundleBusy = false;
+    if (bundleQueued) {
+      const next = bundleQueued;
+      bundleQueued = null;
+      selectBundle(next);
+    } else {
+      pendingBundleView = null;
+      update(getState());
+    }
   }
 }
 
@@ -391,25 +405,6 @@ function designUrl() {
   const url = new URL(window.location.href);
   url.searchParams.set('d', code);
   return url.toString();
-}
-
-let saveResetTimer = null;
-async function saveConfiguration() {
-  const url = designUrl();
-  const btns = [...app.querySelectorAll('[data-save]')];
-  try {
-    await navigator.clipboard.writeText(url);
-    for (const b of btns) b.textContent = 'Link copied';
-  } catch {
-    // Clipboard blocked (permissions/insecure context) — keep the link in the
-    // address bar instead so it can be copied manually
-    window.history.replaceState({}, '', url);
-    for (const b of btns) b.textContent = 'Link in URL';
-  }
-  clearTimeout(saveResetTimer);
-  saveResetTimer = setTimeout(() => {
-    for (const b of btns) b.textContent = b.dataset.saveLabel || 'Save';
-  }, 2200);
 }
 
 // Same action as the live configurator's [data-config-reset] (config-reset.js):
@@ -494,10 +489,10 @@ function toggleInterest(open) {
 
 // ---------- Save-design lead capture ----------
 
-// The form collects name/email/phone but is deliberately NOT wired to a
-// backend yet (Eddie's call, 2026-08-25) — the lead only lands in the
-// visitor's own localStorage so repeat saves skip the form. When it's time to
-// wire it (CRM endpoint), submitSaveForm is the single hook point.
+// The form fronts every save (repeat visitors get it prefilled) but is
+// deliberately NOT wired to a backend yet (Eddie's call, 2026-08-25) — the
+// lead only lands in the visitor's own localStorage. When it's time to wire
+// it (CRM endpoint), submitSaveForm is the single hook point.
 const LEAD_KEY = 'olto_tesla_lead';
 
 function getStoredLead() {
@@ -516,7 +511,14 @@ function toggleSaveModal(open) {
   if (open) {
     const form = modal.querySelector('[data-save-form]');
     const done = modal.querySelector('[data-save-done]');
-    if (form) form.hidden = false;
+    if (form) {
+      form.hidden = false;
+      const lead = getStoredLead();
+      for (const key of ['name', 'email', 'phone']) {
+        const input = form.querySelector(`input[name="${key}"]`);
+        if (input && !input.value) input.value = lead?.[key] || '';
+      }
+    }
     if (done) done.hidden = true;
     modal.querySelector('input[name="name"]')?.focus();
   }
@@ -673,9 +675,11 @@ function update(state) {
     crossfadeHero(baseImage, `base:${state.baseNumericId}:${regionKey}`);
   }
 
-  // Bundles
+  // Bundles — while a selection's round trips are in flight, the tapped
+  // card highlights immediately instead of waiting on the cart
+  const activeBundle = pendingBundleView ? pendingBundleView.value : state.activeBundle;
   for (const el of app.querySelectorAll('[data-bundle]')) {
-    el.classList.toggle('is-selected', el.dataset.bundle === state.activeBundle);
+    el.classList.toggle('is-selected', el.dataset.bundle === activeBundle);
   }
 
   // Accessories

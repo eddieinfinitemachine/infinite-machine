@@ -302,7 +302,7 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       <p class="nudge_title">Don&rsquo;t lose your design</p>
       <p class="nudge_body">Save it to share or finish later &mdash; or talk it through with an IM rep.</p>
       <div class="nudge_actions">
-        <button type="button" class="nudge_save" data-save data-save-label="Save my design">
+        <button type="button" class="nudge_save" data-save>
           Save my design
         </button>
         <a
