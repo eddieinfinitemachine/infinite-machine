@@ -1019,15 +1019,18 @@
 .config-actions {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 18px;
+  /* Same step as .summary_note takes off the row above it — this reads as the
+     next line of that block, not as a control bar under it. */
+  margin-top: 10px;
 }
 
 /* Both read as quietly as the two lines above them — same size, weight and
-   colour as .summary_note and .shipto (obodom, Aug 27). They are exits, not
-   calls to action; only .is-armed steps forward. */
+   colour as .summary_note and .shipto, no pill, sitting directly underneath
+   (obodom, Aug 27). They are exits, not calls to action; only .is-armed steps
+   forward. */
 .config-rep {
   font-size: 12px;
   font-weight: 400;
@@ -1038,19 +1041,23 @@
 }
 
 .config-clear {
-  padding: 8px 16px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
+  /* No pill. It is the same kind of text as the line above it and sits directly
+     under it (obodom, Aug 27) — a bordered button here read as the loudest
+     thing in the block, which is backwards for the one destructive action. */
+  padding: 0;
+  border: 0;
   font-size: 12px;
   font-weight: 400;
   white-space: nowrap;
   color: var(--ink-3);
-  transition: color 0.15s ease-out, border-color 0.15s ease-out;
+  transition: color 0.15s ease-out;
 }
 
+/* The only moment it steps forward: armed, waiting for the confirming tap. */
 .config-clear.is-armed {
   color: var(--ink);
-  border-color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .config-clear:active {
