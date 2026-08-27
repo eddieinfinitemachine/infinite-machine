@@ -1,0 +1,39 @@
+# Olto bundle discount — Shopify Function (decision C, Phase 3 finding 2026-08-25).
+#
+# BxGy cannot express the editions: the Admin API rejects a fixed amount on
+# `customerGets` ("Only discountOnQuantity permitted with bxgy discounts"), and
+# discountOnQuantity is "amount off EACH", applied to whatever eligible items are
+# in the cart — a partial set leaks by construction. So the enforcement is this
+# Function: the discount exists only when olto-1 AND the edition's full component
+# set are in the cart, and it is the larger tier only (Max ⊇ Commuter).
+#
+# Deploy — the ONE step that needs a human (browser OAuth to Partners/the store):
+#
+#   node bin/print-bundle-discounts.mjs                        # amounts still right?
+#   node --test shopify/olto-bundle-discount/test/*.test.mjs   # 8 tests
+#   cd shopify && shopify app deploy                           # <-- your login
+#   shopify app function info                                  # copy the function id
+#
+# Then (no login needed, the Admin token has write_discounts):
+#   SHOPIFY_STORE=hcqrd2-n1.myshopify.com SHOPIFY_ADMIN_TOKEN=… \
+#     node bin/create-bundle-discount.mjs --function-id <uuid> --apply
+#
+# Finally flip BUNDLE_DISCOUNT_LIVE in src/infinite/ui.js, rebuild, retag.
+#
+api_version = "2025-07"
+
+[[extensions]]
+name = "Olto bundle discount"
+handle = "olto-bundle-discount"
+type = "function"
+description = "Olto Commuter / Olto Max bundle pricing — fixed amount off the full component set only."
+
+  [[extensions.targeting]]
+  target = "cart.lines.discounts.generate.run"
+  input_query = "src/cart_lines_discounts_generate_run.graphql"
+  export = "cartLinesDiscountsGenerateRun"
+
+[extensions.build]
+command = ""
+path = "dist/function.wasm"
+watch = ["src/**/*.js"]

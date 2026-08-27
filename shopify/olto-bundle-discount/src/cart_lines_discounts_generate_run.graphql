@@ -1,0 +1,18 @@
+query CartLinesDiscountsGenerateRun {
+  cart {
+    lines {
+      id
+      quantity
+      merchandise {
+        __typename
+        ... on ProductVariant {
+          id
+          product { id }
+        }
+      }
+    }
+  }
+  discount {
+    discountClasses
+  }
+}
