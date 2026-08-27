@@ -17,7 +17,14 @@
 import { mount } from './tesla/tesla.js';
 
 const MOUNT_SELECTOR = '[data-tesla-app]';
-const WF_FORM_ID = 'wf-form-Olto-Interest-Form';
+
+// Ordered by preference. The id is the production form; the structural
+// selector is what actually makes this robust — it matches whatever form the
+// page authored inside the interest modal, so a staging copy under a different
+// name (deliberately, to keep test submissions out of the CRM's first-touch
+// cron) is still adopted, and a rename in the Designer cannot silently break
+// adoption.
+const WF_FORM_SELECTORS = ['#wf-form-Olto-Interest-Form', '[data-modal-name="interest"] form'];
 
 boot();
 
@@ -102,15 +109,17 @@ function watchForShopyflowHost() {
  */
 function adoptWebflowForm(root) {
   const slot = root.querySelector('[data-wf-form-slot]');
-  const form = document.getElementById(WF_FORM_ID);
+  const form = WF_FORM_SELECTORS.reduce((found, sel) => found || document.querySelector(sel), null);
   if (!slot) {
     console.error('[Olto] No [data-wf-form-slot] in the rendered UI — form not adopted.');
     return;
   }
   if (!form) {
     console.error(
-      `[Olto] #${WF_FORM_ID} not found on the page. Rest-of-world interest and ` +
-        'US save would both capture nothing — leaving the fallback form in place.'
+      '[Olto] No Webflow interest form found (tried: ' +
+        WF_FORM_SELECTORS.join(', ') +
+        '). Rest-of-world interest and US save would both capture nothing — ' +
+        'leaving the fallback form in place.'
     );
     return;
   }
