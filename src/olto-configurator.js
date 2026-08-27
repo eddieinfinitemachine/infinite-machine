@@ -107,6 +107,39 @@ function watchForShopyflowHost() {
  * (.w-form-done) and error (.w-form-fail) blocks are siblings of the form
  * inside it. Move only the form and a successful submit shows the user nothing.
  */
+/**
+ * Webflow's API cannot set an input's placeholder — `placeholder` is a reserved
+ * attribute name there — so a field added outside the Designer ships with the
+ * default "Example text". The configurator owns how this modal reads, so it
+ * supplies the missing labels itself.
+ *
+ * Only fills a placeholder that is absent or still Webflow's default: whatever
+ * the Designer says wins, so this does nothing on a properly authored form.
+ */
+const FIELD_PLACEHOLDERS = {
+  'full-name': 'Name',
+  name: 'Name',
+  email: 'Email',
+  'email-address': 'Email',
+  phone: 'Phone',
+  'phone-number': 'Phone',
+};
+
+function normaliseFormLabels(form) {
+  form
+    .querySelectorAll('input[type="text"], input[type="email"], input[type="tel"]')
+    .forEach((input) => {
+      const current = input.getAttribute('placeholder') || '';
+      if (current && current !== 'Example text') return;
+      const key = (input.getAttribute('data-name') || input.name || '')
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, '-');
+      const label = FIELD_PLACEHOLDERS[key];
+      if (label) input.setAttribute('placeholder', label);
+    });
+}
+
 function adoptWebflowForm(root) {
   const slot = root.querySelector('[data-wf-form-slot]');
   const form = WF_FORM_SELECTORS.reduce((found, sel) => found || document.querySelector(sel), null);
@@ -126,6 +159,7 @@ function adoptWebflowForm(root) {
 
   slot.appendChild(form.closest('.w-form') || form);
   slot.hidden = false;
+  normaliseFormLabels(form);
 
   // The built-in form only exists for the standalone demo, where no Webflow
   // form is present. Two live forms would double-submit and split attribution.
