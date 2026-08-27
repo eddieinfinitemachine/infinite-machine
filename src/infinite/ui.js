@@ -697,11 +697,20 @@ function buildAccessoryOption(p, name, values, defaults) {
         </div>`;
 }
 
+// What a size should land on before the buyer touches it. Shopify's first
+// variant is S, which is nobody's default (obodom, Aug 27). Only applied when
+// the product actually offers the value.
+const PREFERRED_OPTION = { Size: 'L' };
+
 function buildAccessoryCard(p) {
   const v = firstVariant(p);
   if (!v) return '';
   const options = p.variants.length > 1 ? productOptions(p) : [];
   const defaults = new Map((v.selectedOptions || []).map((o) => [o.name, o.value]));
+  for (const [name, values] of options) {
+    const preferred = PREFERRED_OPTION[name];
+    if (preferred && values.includes(preferred)) defaults.set(name, preferred);
+  }
   return `
     <div class="acc" data-acc="${esc(p.handle)}">
       <div class="acc_media">
@@ -786,7 +795,16 @@ export function buildSummaryRows(state, config) {
     // against the total below it.
     const { handle } = l.merchandise.product;
     const each = state.accessoryQty?.[handle] || 1;
-    const title = esc(productTitle(handle, l.merchandise.product.title));
+    // The variant is the whole point of picking one — a receipt reading
+    // "Open Face Helmet" gives the buyer no way to check they got the size and
+    // colour they chose (obodom, Aug 27). Same middot form as the bike row.
+    const variant = l.merchandise.title;
+    // Escape the parts, then join with the entity — escaping the joined string
+    // would turn the middot into a literal "&middot;".
+    const title = [productTitle(handle, l.merchandise.product.title), variant]
+      .filter((part) => part && part !== 'Default Title')
+      .map(esc)
+      .join(' &middot; ');
     rows.push({
       label: each > 1 ? `${title} <span class="summary_x">&times;${each}</span>` : title,
       amount: parseFloat(l.merchandise.price.amount) * each,
