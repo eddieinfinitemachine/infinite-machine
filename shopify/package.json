@@ -7,9 +7,12 @@
     "test": "node --test extensions/olto-bundle-discount/test/*.test.mjs"
   },
   "dependencies": {
-    "@shopify/shopify_function": "~2.0.1"
+    "@preact/signals": "^2.11.1",
+    "@shopify/shopify_function": "~2.0.1",
+    "preact": "^10.29.8"
   },
   "devDependencies": {
-    "@graphql-codegen/cli": "5.0.6"
+    "@graphql-codegen/cli": "5.0.6",
+    "@shopify/ui-extensions": "~2026.1.5"
   }
 }
