@@ -300,7 +300,7 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
 
     <main class="sheet">
       <section class="intro">
-        <h1 class="intro_title">${OLTO_WORDMARK_SVG}</h1>
+        <h1 class="intro_title">${OLTO_WORDMARK_SVG}<span class="visually-hidden">Configure your Olto</span></h1>
         <p class="intro_delivery" data-delivery></p>
         <p class="intro_price">From ${formatMoney(basePrice)}</p>
       </section>

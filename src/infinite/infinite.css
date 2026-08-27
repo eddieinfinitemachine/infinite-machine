@@ -1576,3 +1576,19 @@
     display: none;
   }
 }
+
+
+/* Heading text for crawlers and screen readers. The H1 is the Olto wordmark
+   SVG; its aria-label serves assistive tech but Google does not reliably treat
+   an SVG aria-label as heading text, so the page would otherwise have no H1. */
+.olto-cfg .visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

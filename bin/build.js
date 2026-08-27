@@ -1,4 +1,5 @@
 import 'dotenv/config';
+
 import * as esbuild from 'esbuild';
 import { copyFileSync, mkdirSync, readdirSync } from 'fs';
 import { join, sep } from 'path';
@@ -60,9 +61,7 @@ const context = await esbuild.context({
     'process.env.SHOPIFY_STOREFRONT_PUBLIC_TOKEN': JSON.stringify(
       process.env.SHOPIFY_STOREFRONT_PUBLIC_TOKEN
     ),
-    'process.env.SHOPIFY_API_VERSION': JSON.stringify(
-      process.env.SHOPIFY_API_VERSION || '2026-04'
-    ),
+    'process.env.SHOPIFY_API_VERSION': JSON.stringify(process.env.SHOPIFY_API_VERSION || '2026-04'),
   },
   // infinite.css is imported as a string and injected as a <style> at mount, so
   // the stylesheet ships inside the bundle instead of as a second versioned URL.
@@ -70,9 +69,25 @@ const context = await esbuild.context({
   external: ['jquery', 'gsap', 'gsap/ScrollTrigger', 'swiper'],
 });
 
+// Guard: src/infinite/index.html carries <meta name="robots" content="noindex">
+// for the standalone demo. If that string ever reaches the bundle the Webflow
+// page embeds, it would deindex /olto/configure — the highest-intent commercial
+// page on the site. Cheap assertion, catastrophic failure mode.
+async function assertNoIndexNotShipped() {
+  const { readFileSync, existsSync } = await import('fs');
+  const shipped = join(BUILD_DIRECTORY, 'olto-configurator.js');
+  if (!existsSync(shipped)) return;
+  if (/noindex/i.test(readFileSync(shipped, 'utf8'))) {
+    console.error('\nBUILD BLOCKED: dist/olto-configurator.js contains "noindex".');
+    console.error('That string must never reach the Webflow page.\n');
+    process.exit(1);
+  }
+}
+
 // Build files in prod
 if (PRODUCTION) {
   await context.rebuild();
+  await assertNoIndexNotShipped();
   context.dispose();
 }
 
