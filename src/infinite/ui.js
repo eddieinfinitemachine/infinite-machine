@@ -150,12 +150,7 @@ export const KITS = [
     // is unchanged. The OLTO-COMMUTER-BUNDLE discount code was moved to $102 to
     // match — the page reads the saving back from Shopify, so the two must agree.
     price: 200,
-    items: [
-      'olto-sidewalls',
-      'olto-charging-dock',
-      'olto-phone-mount',
-      'olto-water-bottle-holder',
-    ],
+    items: ['olto-sidewalls', 'olto-charging-dock', 'olto-phone-mount', 'olto-water-bottle-holder'],
   },
   {
     key: 'cargo',
