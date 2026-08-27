@@ -516,11 +516,12 @@
               {
                 "type": "TEMPLATE",
                 "key": "arg1",
-                "value": "^(view_configurator|begin_checkout|save_configuration|register_interest|form_submit|save_configuration_open|interest_form_open|select_color|select_bundle|add_accessory|remove_accessory|select_accessory_option|change_quantity|change_accessory_quantity|select_pay_mode|select_country|open_rep_chat|play_accessory_video|save_design_image|clear_configuration)$"
+                "value": "^(view_configurator|save_configuration|register_interest|form_submit|save_configuration_open|interest_form_open|select_color|select_bundle|add_accessory|remove_accessory|select_accessory_option|change_quantity|change_accessory_quantity|select_pay_mode|select_country|open_rep_chat|play_accessory_video|save_design_image|clear_configuration)$"
               }
             ]
           }
-        ]
+        ],
+        "notes": "begin_checkout is deliberately NOT in this list. The existing GA4 - Checkout tag already fires on it via trigger 100 (see GTM-5ZBFGDCB_begin_checkout.json), and matching it here too would put two GA4 events on one checkout. To get the configuration context onto checkout, add the olto_* params to GA4 - Checkout rather than adding the event back here."
       },
       {
         "accountId": "6248004035",

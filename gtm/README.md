@@ -140,6 +140,23 @@ Two tags rather than twenty because the event name is passed through rather than
 hard-coded. Adding an event to the contract means editing one regex, not
 building another tag.
 
+`begin_checkout` is deliberately **excluded** from the regex. The existing
+`GA4 - Checkout` tag already fires on it via trigger 100 from the other import,
+and matching it here as well would put two GA4 events on one checkout. The
+Google Ads conversion is unaffected either way — it fires once, from trigger 100.
+To get the configuration context onto checkout, add the `olto_*` params to
+`GA4 - Checkout` rather than putting the event back in this regex.
+
+### Which of the two imports is a cutover blocker
+
+**`GTM-5ZBFGDCB_begin_checkout.json` is.** Trigger `[12] Checkout` matches
+*Click Text contains "Checkout"* and the new CTA reads **Order**, so it stops
+firing at cutover — taking `GA4 - Checkout` and `Checkout Tag`, a **Google Ads
+conversion**, with it. That is bidding signal, not just reporting.
+
+**This file is not.** It is additive: nothing breaks without it, you simply do
+not get the new data. Import it whenever.
+
 ### Then register the custom dimensions in GA4 — this is the step people miss
 
 GA4 **collects** an event parameter automatically but will not let you report on
