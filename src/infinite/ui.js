@@ -44,42 +44,41 @@ export const ACCESSORY_LAYERS = {
   'olto-soft-bag': `${LAYER_CDN}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`,
 };
 
-// Payment: Cash or Shop Pay Installments (Eddie, Aug 26 pm — "add financing
-// with shop pay options. so cash and finance"). Lease is parked entirely.
-// The finance anchor is the as-low-as Shop Pay figure; real terms come from
-// Shop Pay at checkout.
-// TODO(eddie): 24 months is your call (Aug 26 pm, "for shop pay default to 24
-// months") — Shop Pay Installments' US monthly plans are 3/6/12, so a 24-month
-// anchor won't be matched at checkout unless the store is on a longer-term
-// financing program. Flip to 12 here if it should mirror Shop Pay exactly.
 /**
- * Is the Shopify bundle discount live?
+ * Does Shopify actually honour the bundle price?
  *
- * FALSE means the store charges full price for every component, so the page
- * must NOT advertise a tier price or a saving — adding the Commuter set really
- * does cost $326, not $200. With this false the cards show the honest
- * a-la-carte sum and no strikethrough.
+ * TRUE since 2026-08-27: three discount codes exist and were verified against
+ * live carts at $3,695 / $4,095 / $4,275. infinite.js applies the matching code
+ * when a bundle's set matches exactly (BUNDLE_CODES / syncBundleDiscount);
+ * bin/create-bundle-discounts.mjs creates and re-checks them.
  *
- * TRUE since 2026-08-27: the three discount codes exist in Shopify and were
- * verified against live carts at $3,695 / $4,095 / $4,275. infinite.js applies
- * the matching code when a bundle's set matches exactly
- * (BUNDLE_CODES / syncBundleDiscount); bin/create-bundle-discounts.mjs creates
- * and re-checks them.
- *
- * Required amounts (live Shopify prices, 2026-08-27):
- *   Olto Commuter  components $326    tier $200  ->  -$126
- *   Olto Cargo     components $920    tier $600  ->  -$320
- *   Olto Max       components $1,196  tier $780  ->  -$416
- * Max is a superset of Cargo, so Max must be evaluated first; Commuter is
- * disjoint from both (it is the only tier containing bottom-cover).
- *
- * This flag only controls what the page ADVERTISES. The running total always
- * comes from Shopify's own discount, so it is truthful either way.
+ * If it were false, the kit cards would show the honest a-la-carte sum with no
+ * tier price and no strikethrough — because adding the Commuter set really
+ * would cost $326, not $200. The flag only controls what is ADVERTISED; the
+ * running total always comes from what Shopify applied, so it is truthful
+ * either way.
  */
 export const BUNDLE_DISCOUNT_LIVE = true;
 
+// Payment: Cash or Shop Pay Installments (Eddie, Aug 26 pm — "add financing
+// with shop pay options. so cash and finance"). Lease is parked entirely.
+//
+// 12 months at 0% APR (Obie, 2026-08-27). The anchor has to be a payment Shop
+// Pay will actually honour, and at 0% APR total/12 is exact.
+//
+// The earlier 24-month anchor was wrong twice over. Its comment claimed US
+// monthly plans were 3/6/12 — Shopify in fact offers 3/6/12/18/24 — but the
+// real problem was the maths: 24-month plans carry APR, so total/24 quoted a
+// payment nobody could get. 24 months exists and is cheaper per month; it is
+// just not quotable, because APR runs 0-36% per buyer. So the headline is the
+// exact 0% figure and the longer terms are mentioned without a number.
+//
+// Joseph, Aug 27: "when you click the finance option, it doesn't actually pass
+// along to shop." Correct, and not fixable — Shop Pay terms are chosen by the
+// buyer during checkout and the cart API cannot preselect them. This toggle is
+// an estimator, which is why the copy points at checkout for real terms.
 export const PAYMENT_PLANS = {
-  finance: { months: 24 },
+  finance: { months: 12, apr: 0 },
 };
 
 // What the order bar + Payment section show for a given mode.
@@ -90,11 +89,11 @@ export function paymentFigures(total, currency, mode) {
     return {
       amount: monthly,
       suffix: '/mo',
-      label: 'As low as, with Shop Pay',
-      sub: `As low as ${formatMoney(
+      label: '12 mo at 0% APR, with Shop Pay',
+      sub: `${formatMoney(
         monthly,
         currency
-      )}/mo with Shop Pay Installments — ${months} monthly payments for eligible buyers (rates 0–36.99% APR). Exact plans and terms appear at checkout.`,
+      )}/mo with Shop Pay Installments — ${months} monthly payments at 0% APR for eligible buyers. Longer terms are available at checkout and carry interest.`,
     };
   }
   return {
