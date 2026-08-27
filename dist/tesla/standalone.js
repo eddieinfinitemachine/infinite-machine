@@ -203,10 +203,15 @@
   --ease-im: cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
-.olto-cfg,
-.olto-cfg *,
-.olto-cfg *::before,
-.olto-cfg *::after {
+/* :where() throughout this block: scoping must add REACH, not WEIGHT. Written
+   plainly, \`.olto-cfg button\` is (0,1,1) and outranks \`.swatch\` (0,1,0), which
+   silently killed every colour swatch's background. :where() contributes zero
+   specificity, so these keep the exact cascade the unscoped \`*\`/\`button\` rules
+   had. */
+:where(.olto-cfg),
+:where(.olto-cfg) *,
+:where(.olto-cfg) *::before,
+:where(.olto-cfg) *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -234,7 +239,7 @@
   min-height: 100dvh;
 }
 
-.olto-cfg button {
+:where(.olto-cfg) button {
   font-family: inherit;
   border: 0;
   background: none;
@@ -244,15 +249,15 @@
 
 /* The adopted Webflow form arrives wearing Webflow's own form classes. Neutralise
    them so it inherits this UI rather than the site's. */
-.olto-cfg .w-form {
+:where(.olto-cfg) .w-form {
   margin: 0;
 }
 
-.olto-cfg .w-input,
-.olto-cfg .w-select,
-.olto-cfg input[type='text'],
-.olto-cfg input[type='email'],
-.olto-cfg input[type='tel'] {
+:where(.olto-cfg) [data-wf-form-slot] .w-input,
+:where(.olto-cfg) [data-wf-form-slot] .w-select,
+:where(.olto-cfg) [data-wf-form-slot] input[type='text'],
+:where(.olto-cfg) [data-wf-form-slot] input[type='email'],
+:where(.olto-cfg) [data-wf-form-slot] input[type='tel'] {
   width: 100%;
   height: auto;
   font-family: inherit;
@@ -265,7 +270,7 @@
   margin-bottom: 10px;
 }
 
-.olto-cfg input[type='submit'] {
+:where(.olto-cfg) [data-wf-form-slot] input[type='submit'] {
   width: 100%;
   font-family: inherit;
   font-size: 1rem;
@@ -277,8 +282,8 @@
   cursor: pointer;
 }
 
-.olto-cfg .w-form-done,
-.olto-cfg .w-form-fail {
+:where(.olto-cfg) .w-form-done,
+:where(.olto-cfg) .w-form-fail {
   padding: 16px;
   border-radius: var(--radius);
   background: var(--chip);
@@ -1458,37 +1463,51 @@
   }
 }
 
-/* ---------- Ship-to country ---------- */
+/* ---------- Ship to ----------
+   Deliberately not a form control. It sits with the summary rows, reads as
+   text, and only looks like a picker while it has focus \u2014 a boxed <select> in
+   the hero was the wrong weight for the one field almost nobody touches
+   (geo-IP resolves it), even though the CRM depends on its value. */
 
-.olto-cfg .intro_ship {
+.olto-cfg .shipto {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 0;
   font-size: 0.8125rem;
-  color: var(--ink-2);
-}
-
-.olto-cfg .intro_ship_key {
   color: var(--ink-3);
 }
 
-.olto-cfg .intro_country {
-  font-family: inherit;
-  font-size: 0.8125rem;
-  color: var(--ink);
-  background: var(--chip);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 5px 10px;
-  max-width: 190px;
-  cursor: pointer;
+.olto-cfg .shipto_val {
+  position: relative;
 }
 
-.olto-cfg .intro_country:focus-visible {
+.olto-cfg .shipto_select {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin-right: -4px;
+  text-align: right;
+  text-align-last: right;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.olto-cfg .shipto_select:hover {
+  color: var(--ink);
+  background: var(--chip);
+}
+
+.olto-cfg .shipto_select:focus-visible {
   outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
 `;var na='<svg viewBox="0 0 922 201" fill="none" xmlns="http://www.w3.org/2000/svg" class="olto-wordmark" role="img" aria-label="Olto"> <path d="M246.995 19.4652C255.252 28.6186 259.698 41.3214 261.454 61.0855C262.35 70.239 262.649 80.8495 262.649 102.706C262.649 151.985 257.942 170.89 242.885 184.153C231.976 193.605 217.218 198.313 192.41 199.807C182.958 200.405 147.241 201.003 119.817 201.003C59.5913 201.003 43.3765 199.247 26.564 190.093C13.5623 182.995 5.00663 169.433 2.35399 149.968C0.598013 136.966 0.000235075 126.355 0.000235075 94.1874C-0.0371261 48.1211 4.37149 29.8142 18.5687 17.4103C29.1793 7.95792 43.0403 3.54931 68.4458 1.45708C78.496 0.560417 108.011 0 143.99 0C213.631 0 232.237 3.54931 246.995 19.4652ZM46.2907 100.651C46.2907 139.021 49.2422 151.425 60.1517 157.029C71.0611 162.932 80.5135 163.829 136.891 163.829C187.665 163.829 200.331 161.774 208.326 152.919C215.126 145.559 217.181 132.856 217.181 99.4927C217.181 37.8095 216.583 37.2117 131.586 37.2117C46.5896 37.2117 46.2907 38.1084 46.2907 100.651Z" fill="#E90022"/> <path d="M286.86 2.05334H332.328V162.034H476.057V198.909H286.86V2.05334Z" fill="#E90022"/> <path d="M507.328 38.9662H414.673V2.05334H645.154V38.9288H552.759V198.909H507.291V38.9662H507.328Z" fill="#E90022"/> <path d="M906.345 19.4644C914.602 28.6179 919.048 41.3207 920.804 61.0847C921.701 70.2382 922 80.8488 922 102.705C922 151.984 917.292 170.889 902.236 184.152C891.326 193.605 876.569 198.312 851.761 199.807C842.308 200.404 806.591 201.002 779.168 201.002C718.979 201.002 702.727 199.246 685.915 190.093C672.913 182.994 664.357 169.432 661.705 149.967C659.949 136.965 659.351 126.355 659.351 94.1867C659.351 48.1578 663.797 29.8508 677.957 17.4469C688.567 7.99454 702.466 3.58593 727.834 1.49371C737.884 0.597038 767.399 0.0366211 803.378 0.0366211C873.019 0.0366211 891.625 3.58593 906.383 19.5018L906.345 19.4644ZM705.679 100.65C705.679 139.02 708.63 151.424 719.54 157.028C730.449 162.931 739.901 163.828 796.279 163.828C847.053 163.828 859.719 161.773 867.714 152.918C874.514 145.558 876.569 132.855 876.569 99.492C876.569 37.8087 875.971 37.211 790.974 37.211C705.978 37.211 705.679 38.1076 705.679 100.65Z" fill="#E90022"/> </svg>',ia='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 831.97 45.21" class="im-wordmark" fill="currentColor" role="img" aria-label="Infinite Machine"><g id="Layer_2" data-name="Layer 2"><g id="Layer_1-2" data-name="Layer 1"><path d="M13.56.33V44.88H0V.33Z"/><path d="M44.93.33l27,33.86L71.58.33H84.4V44.88H62.63L36,11.35l.34,33.53h-13V.33Z"/><path d="M141.66.33V10.42H107.87V19.3h32.06V29.39H107.87V44.88H94.38V.33Z"/><path d="M163.09.33V44.88H149.54V.33Z"/><path d="M194.46.33l27,33.86L221.11.33h12.82V44.88H212.16L185.58,11.35l.33,33.53h-13V.33Z"/><path d="M257.44.33V44.88H243.89V.33Z"/><path d="M264.52,11.35V.33h53.23v11H297.91V44.88H284.35V11.35Z"/><path d="M374.26,10.42h-36V18.1h33.93v8.81H338.26V34.8h36.47V44.88H324.91V.33h49.35Z"/><path d="M423,.33l16.23,29.59L455.34.33h21.37V44.88H463.49l.67-34.39L444.39,44.88H433.57L414.13,10.49l.4,34.39H401.44V.33Z"/><path d="M526.62.33,551,44.88H536.17l-4.4-8H503.05l-4.28,8H483.41l25-44.55Zm-9.21,9.55-9.49,17.77H527Z"/><path d="M611.09,32.22c0,1.14-.11,2.11-.2,2.91a13.74,13.74,0,0,1-.36,2.07,11.1,11.1,0,0,1-.57,1.6,8.86,8.86,0,0,1-4.21,4.31,21.46,21.46,0,0,1-8.08,1.77q-2.07.19-6.18.27t-10.78.06c-3.21,0-5.91,0-8.12-.13a53.92,53.92,0,0,1-5.61-.47,20.34,20.34,0,0,1-3.9-.9,14.32,14.32,0,0,1-2.94-1.43,10.08,10.08,0,0,1-2.77-2.58,11.37,11.37,0,0,1-1.74-3.87,32.31,32.31,0,0,1-.9-5.84c-.18-2.32-.27-5.12-.27-8.42q0-4.41.27-7.48a23.36,23.36,0,0,1,1-5.24,10,10,0,0,1,1.87-3.54,10.88,10.88,0,0,1,2.9-2.37,16.6,16.6,0,0,1,3.17-1.44,23.22,23.22,0,0,1,4-.9Q570,.27,573.29.13c2.19-.09,4.83-.13,8-.13q6.21,0,10.22.07c2.67,0,4.88.15,6.61.33a27.49,27.49,0,0,1,4.21.7,18,18,0,0,1,3,1.1,8.12,8.12,0,0,1,4,4.35,20.63,20.63,0,0,1,1.27,7.94V16h-13a11.59,11.59,0,0,0-.5-2.87,2.69,2.69,0,0,0-1.7-1.6,12.6,12.6,0,0,0-3.87-.67c-1.7-.09-4-.13-6.95-.13q-4.14,0-6.74.06c-1.74.05-3.13.14-4.18.27a10.12,10.12,0,0,0-2.4.53,5.12,5.12,0,0,0-1.44.87,4.48,4.48,0,0,0-1,1.24,7.48,7.48,0,0,0-.6,1.87,20.61,20.61,0,0,0-.3,2.94c0,1.18-.07,2.66-.07,4.44a42.86,42.86,0,0,0,.37,6.31A5.34,5.34,0,0,0,570,32.66a8,8,0,0,0,4.21,1.43,75.75,75.75,0,0,0,7.68.31c2.54,0,4.57,0,6.11,0s2.77,0,3.71-.1a12.82,12.82,0,0,0,2.13-.23,7.73,7.73,0,0,0,1.47-.5,3.77,3.77,0,0,0,2.07-1.81,8.36,8.36,0,0,0,.6-3.6h13.16C611.16,29.72,611.14,31.09,611.09,32.22Z"/><path d="M633.44.33v16.5H664.3V.33h13.56V44.88H664.3v-17H633.44v17H619.88V.33Z"/><path d="M701.33.33V44.88H687.77V.33Z"/><path d="M732.7.33l27,33.86L759.35.33h12.82V44.88H750.4L723.82,11.35l.33,33.53h-13V.33Z"/><path d="M831.51,10.42h-36V18.1h33.93v8.81H795.51V34.8H832V44.88H782.15V.33h49.36Z"/></g></g></svg>',_="https://cdn.prod.website-files.com/66ea2a84659b76f5d91d481b",ct={"accessory-plate":`${_}/68d53a735e9c987a9499211a_accessory-plate.avif`,"charger-bag":`${_}/68d53a2cb165eb23a2527775_charger-bag.avif`,"olto-center-stand":`${_}/68d53974c880c4b20d23dec9_olto-center-stand.avif`,"olto-charging-dock":`${_}/68d5396153ba7acdd9978c0d_olto-charging-dock.avif`,"olto-kid-carrier":`${_}/6921a92ec4d3dc4a766d69bb_Kid%20Carrier.avif`,"olto-rear-basket":`${_}/68d53b6769ccc4ad6ad7d0b3_olto-rear-basket.avif`,"olto-rear-rack":`${_}/68d53b2e1153a3e349d34c1a_olto-rear-rack.avif`,"olto-side-mounting-plate":`${_}/68d53bea87ff421cf85c858e_olto-side-mounting-plate.avif`,"olto-water-bottle-holder":`${_}/68d53d46367f73dfd1b58a42_olto-water-bottle-holder.avif`,"olto-sidewalls":`${_}/68d53c3ccb4cfb15c59ac6cd_olto-sidewalls.avif`,"olto-super-charger":`${_}/6921a99cb5dd5b924cf4965d_Super%20Charger%20on%20the%20Ground.avif`,"olto-u-lock-mount":`${_}/68d53cf8bb965a6129e84ff4_olto-u-lock-mount.avif`,"open-face-helmet":`${_}/6921a8f20583ec71e2663dce_Black%20Open%20Face%20Helmet.avif`,"kryptonite-lock":`${_}/68d53fc0d2d8d2d151493b5f_kryptonite-lock.avif`,"olto-soft-bag":`${_}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`},lt={finance:{months:48,apr:.1599},lease:{months:24,residualPct:.35}};function sa(e,t,a){if(a==="finance"){let{months:o,apr:r}=lt.finance,n=r/12,i=n>0?e*n/(1-(1+n)**-o):e/o;return{amount:i,suffix:"/mo",label:"Est. finance payment",sub:`${o} monthly payments of ${C(i,t)} at ${(r*100).toFixed(2)}% APR. Estimate for illustration \u2014 payment options appear at checkout.`}}if(a==="lease"){let{months:o,residualPct:r}=lt.lease;return{amount:e*(1-r)/o,suffix:"/mo",label:"Est. lease payment",sub:`${o}-month term, ${Math.round(r*100)}% residual. Estimate for illustration.`}}return{amount:e,suffix:"",label:"Est. purchase price",sub:"Taxes and shipping calculated at checkout."}}var Ce=[{key:"commuter",label:"Olto Commuter",tagline:"Everything you need to commute every day.",popular:!0,price:200,items:["olto-sidewalls","olto-charging-dock","olto-phone-mount","olto-water-bottle-holder","open-face-helmet","bottom-cover"]},{key:"cargo",label:"Olto Cargo",tagline:"Carry everything.",price:700,items:["olto-sidewalls","olto-charging-dock","olto-phone-mount","charger-bag","olto-rear-rack","olto-rear-basket","olto-soft-bag","olto-side-mounting-plate","accessory-plate","olto-center-stand"]},{key:"max",label:"Olto Max",tagline:"Fully loaded. Full power.",price:950,items:["olto-sidewalls","olto-charging-dock","olto-phone-mount","olto-water-bottle-holder","charger-bag","olto-rear-rack","olto-rear-basket","olto-soft-bag","olto-side-mounting-plate","accessory-plate","olto-center-stand","olto-super-charger"]}],ja=new Set(["bottom-cover"]),Ya=[{value:"40 mi",label:"Range (est.)"},{value:"20 mph",label:"Top Speed"},{value:"Class 2",label:"E-bike"}];function C(e,t="USD"){let a=Number(e)||0,o=a%1===0?0:2;return t==="USD"?`$${a.toLocaleString("en-US",{minimumFractionDigits:o,maximumFractionDigits:o})}`:`${t} ${a.toFixed(2)}`}function g(e){return String(e!=null?e:"").replace(/[&<>"']/g,t=>`&#${t.charCodeAt(0)};`)}function W(e,t){return e?`${e}${e.includes("?")?"&":"?"}width=${t}`:""}function la({config:e,products:t,wrapVariantsByColor:a}){let o=Object.entries(e.variants),[r]=o.find(([l])=>l===e.defaultVariantId)||o[0],n=Math.min(...t.main.variants.map(l=>parseFloat(l.price.amount))),{months:i,apr:s}=lt.finance,c=s/12,d=Math.round(n*c/(1-(1+c)**-i));return`
     <header class="topbar">
@@ -1552,15 +1571,6 @@
         <h1 class="intro_title">${na}</h1>
         <p class="intro_delivery" data-delivery></p>
         <p class="intro_price">From ${C(n)} \xB7 or ${C(d)}/mo financing</p>
-        <!-- Olto ships in the US only. This is also the one field the CRM splits
-             US from international on (webflow_submissions.country), and the
-             visitor's way to correct a bad geo-IP read. -->
-        <p class="intro_ship">
-          <span class="intro_ship_key">Ship to</span>
-          <select class="intro_country" data-country aria-label="Shipping country">
-            ${ge.map(l=>`<option value="${g(l.Code)}">${g(l.Name)}</option>`).join("")}
-          </select>
-        </p>
         <div class="stats">
           ${Ya.map(l=>`
             <div class="stats_item">
@@ -1614,6 +1624,18 @@
           <span>Total</span>
           <span data-summary-total></span>
         </div>
+        <!-- Olto ships in the US only. Quiet by design: geo-IP resolves this for
+             almost everyone, but it is the one field the CRM splits US from
+             international on (webflow_submissions.country) and the visitor's
+             way to correct a bad geo read, so it has to be reachable. -->
+        <p class="shipto">
+          <span class="shipto_key">Ship to</span>
+          <span class="shipto_val">
+            <select class="shipto_select" data-country aria-label="Shipping country">
+              ${ge.map(l=>`<option value="${g(l.Code)}">${g(l.Name)}</option>`).join("")}
+            </select>
+          </span>
+        </p>
         <p class="summary_note">Taxes and shipping calculated at checkout</p>
         <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
       </section>

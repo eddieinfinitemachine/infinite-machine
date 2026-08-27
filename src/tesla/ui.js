@@ -270,17 +270,6 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
         <p class="intro_price">From ${formatMoney(basePrice)} · or ${formatMoney(
     monthlyFrom
   )}/mo financing</p>
-        <!-- Olto ships in the US only. This is also the one field the CRM splits
-             US from international on (webflow_submissions.country), and the
-             visitor's way to correct a bad geo-IP read. -->
-        <p class="intro_ship">
-          <span class="intro_ship_key">Ship to</span>
-          <select class="intro_country" data-country aria-label="Shipping country">
-            ${countries
-              .map((c) => `<option value="${esc(c.Code)}">${esc(c.Name)}</option>`)
-              .join('')}
-          </select>
-        </p>
         <div class="stats">
           ${STATS.map(
             (s) => `
@@ -339,6 +328,20 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <span>Total</span>
           <span data-summary-total></span>
         </div>
+        <!-- Olto ships in the US only. Quiet by design: geo-IP resolves this for
+             almost everyone, but it is the one field the CRM splits US from
+             international on (webflow_submissions.country) and the visitor's
+             way to correct a bad geo read, so it has to be reachable. -->
+        <p class="shipto">
+          <span class="shipto_key">Ship to</span>
+          <span class="shipto_val">
+            <select class="shipto_select" data-country aria-label="Shipping country">
+              ${countries
+                .map((c) => `<option value="${esc(c.Code)}">${esc(c.Name)}</option>`)
+                .join('')}
+            </select>
+          </span>
+        </p>
         <p class="summary_note">Taxes and shipping calculated at checkout</p>
         <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
       </section>

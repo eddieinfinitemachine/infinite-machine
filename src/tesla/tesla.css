@@ -79,10 +79,15 @@
   --ease-im: cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
-.olto-cfg,
-.olto-cfg *,
-.olto-cfg *::before,
-.olto-cfg *::after {
+/* :where() throughout this block: scoping must add REACH, not WEIGHT. Written
+   plainly, `.olto-cfg button` is (0,1,1) and outranks `.swatch` (0,1,0), which
+   silently killed every colour swatch's background. :where() contributes zero
+   specificity, so these keep the exact cascade the unscoped `*`/`button` rules
+   had. */
+:where(.olto-cfg),
+:where(.olto-cfg) *,
+:where(.olto-cfg) *::before,
+:where(.olto-cfg) *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -110,7 +115,7 @@
   min-height: 100dvh;
 }
 
-.olto-cfg button {
+:where(.olto-cfg) button {
   font-family: inherit;
   border: 0;
   background: none;
@@ -120,15 +125,15 @@
 
 /* The adopted Webflow form arrives wearing Webflow's own form classes. Neutralise
    them so it inherits this UI rather than the site's. */
-.olto-cfg .w-form {
+:where(.olto-cfg) .w-form {
   margin: 0;
 }
 
-.olto-cfg .w-input,
-.olto-cfg .w-select,
-.olto-cfg input[type='text'],
-.olto-cfg input[type='email'],
-.olto-cfg input[type='tel'] {
+:where(.olto-cfg) [data-wf-form-slot] .w-input,
+:where(.olto-cfg) [data-wf-form-slot] .w-select,
+:where(.olto-cfg) [data-wf-form-slot] input[type='text'],
+:where(.olto-cfg) [data-wf-form-slot] input[type='email'],
+:where(.olto-cfg) [data-wf-form-slot] input[type='tel'] {
   width: 100%;
   height: auto;
   font-family: inherit;
@@ -141,7 +146,7 @@
   margin-bottom: 10px;
 }
 
-.olto-cfg input[type='submit'] {
+:where(.olto-cfg) [data-wf-form-slot] input[type='submit'] {
   width: 100%;
   font-family: inherit;
   font-size: 1rem;
@@ -153,8 +158,8 @@
   cursor: pointer;
 }
 
-.olto-cfg .w-form-done,
-.olto-cfg .w-form-fail {
+:where(.olto-cfg) .w-form-done,
+:where(.olto-cfg) .w-form-fail {
   padding: 16px;
   border-radius: var(--radius);
   background: var(--chip);
@@ -1334,35 +1339,49 @@
   }
 }
 
-/* ---------- Ship-to country ---------- */
+/* ---------- Ship to ----------
+   Deliberately not a form control. It sits with the summary rows, reads as
+   text, and only looks like a picker while it has focus — a boxed <select> in
+   the hero was the wrong weight for the one field almost nobody touches
+   (geo-IP resolves it), even though the CRM depends on its value. */
 
-.olto-cfg .intro_ship {
+.olto-cfg .shipto {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 0;
   font-size: 0.8125rem;
-  color: var(--ink-2);
-}
-
-.olto-cfg .intro_ship_key {
   color: var(--ink-3);
 }
 
-.olto-cfg .intro_country {
-  font-family: inherit;
-  font-size: 0.8125rem;
-  color: var(--ink);
-  background: var(--chip);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 5px 10px;
-  max-width: 190px;
-  cursor: pointer;
+.olto-cfg .shipto_val {
+  position: relative;
 }
 
-.olto-cfg .intro_country:focus-visible {
+.olto-cfg .shipto_select {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin-right: -4px;
+  text-align: right;
+  text-align-last: right;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.olto-cfg .shipto_select:hover {
+  color: var(--ink);
+  background: var(--chip);
+}
+
+.olto-cfg .shipto_select:focus-visible {
   outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline-offset: 1px;
 }
