@@ -124,26 +124,25 @@ function recompute(cart) {
   //
   // This used to compute the tier saving here and subtract it from the
   // displayed total, which made the page quote a number the store would not
-  // honour: the cart holds full-price component lines, so checkout charged the
+  // honour: the cart held full-price lines, so checkout charged the
   // undiscounted sum. Measured on staging: page $4,195, Shopify $4,321.
   //
-  // The authoritative figure is what the store actually took off — the gap
-  // between the cart's subtotal and its total. That is 0 until the automatic
-  // discount exists (see BUNDLE_DISCOUNT_LIVE in ui.js), so today the page
-  // shows the honest a-la-carte price; the moment the discount goes live the
-  // saving appears here with no code change, and if it ever breaks the page
-  // reverts to the truth instead of silently overcharging.
-  const cost = cart?.cost;
-  const applied =
-    cost?.subtotalAmount && cost?.totalAmount
-      ? parseFloat(cost.subtotalAmount.amount) - parseFloat(cost.totalAmount.amount)
-      : 0;
-  state.bundleSavings = applied > 0 ? applied : 0;
+  // The authoritative figure is what the store actually took off. Note it is
+  // NOT cost.subtotalAmount - cost.totalAmount: a code discount is allocated
+  // PER LINE and subtotalAmount is already net of it, so that difference is
+  // always zero. The real amount is the sum of the lines' own
+  // discountAllocations (cart.js exposes it as line.discountedAmount).
+  //
+  // Reading it back rather than trusting the tier price means the page can
+  // only ever show a saving Shopify agreed to: if a code stops applying, the
+  // honest a-la-carte price appears instead of a silent overcharge.
+  const lineDiscounts = lines.reduce((sum, l) => sum + (l.discountedAmount || 0), 0);
+  state.bundleSavings = lineDiscounts > 0 ? lineDiscounts : 0;
   total -= state.bundleSavings;
 
   if (activeKit && typeof activeKit.price === 'number' && state.bundleSavings === 0) {
     // Loud on purpose: a matched bundle with no discount is money the customer
-    // was shown and will not get. Harmless while BUNDLE_DISCOUNT_LIVE is false.
+    // was shown and will not get.
     console.warn(
       `[Olto] Bundle "${activeKit.handle}" is in the cart but Shopify applied no discount. ` +
         'Checkout will bill the full component price.'

@@ -60,12 +60,11 @@ export const ACCESSORY_LAYERS = {
  * does cost $326, not $200. With this false the cards show the honest
  * a-la-carte sum and no strikethrough.
  *
- * Flip to true once the automatic discount exists in Shopify. The mechanism is
- * already written in infinite-machine-crm:
- *   configurator/shopify/olto-bundle-discount/        (the Discount Function)
- *   configurator/scripts/create-bundle-function-discount.mjs --apply
- * Its TIERS need recalibrating to the three kits below first — it currently
- * encodes v6's two, with different component sets.
+ * TRUE since 2026-08-27: the three discount codes exist in Shopify and were
+ * verified against live carts at $3,695 / $4,095 / $4,275. infinite.js applies
+ * the matching code when a bundle's set matches exactly
+ * (BUNDLE_CODES / syncBundleDiscount); bin/create-bundle-discounts.mjs creates
+ * and re-checks them.
  *
  * Required amounts (live Shopify prices, 2026-08-27):
  *   Olto Commuter  components $326    tier $200  ->  -$126
@@ -77,7 +76,7 @@ export const ACCESSORY_LAYERS = {
  * This flag only controls what the page ADVERTISES. The running total always
  * comes from Shopify's own discount, so it is truthful either way.
  */
-export const BUNDLE_DISCOUNT_LIVE = false;
+export const BUNDLE_DISCOUNT_LIVE = true;
 
 export const PAYMENT_PLANS = {
   finance: { months: 24 },

@@ -15,6 +15,7 @@ import {
   initCart,
   removeConfig,
   removeLines,
+  setDiscountCodes,
   setLineForProduct,
   setProducts,
   startNewConfigSession,
@@ -1254,6 +1255,51 @@ async function detectRegion() {
  * cart link is rebuilt from. Existing params (?lp_location=wf, ?config=) and
  * the hash are preserved.
  */
+// The Shopify discount codes that price each bundle. Created and verified by
+// bin/create-bundle-discounts.mjs; the amounts live in Shopify, not here.
+//
+// Codes rather than the Shopify Function because an app-owned automatic
+// discount can only be created by the app that OWNS the function, and
+// olto-bundles has no backend to authenticate as. Same mechanism the
+// ambassadors app already uses for referral codes.
+const BUNDLE_CODES = {
+  commuter: 'OLTO-COMMUTER-BUNDLE',
+  cargo: 'OLTO-CARGO-BUNDLE',
+  max: 'OLTO-MAX-BUNDLE',
+};
+const OUR_CODES = new Set(Object.values(BUNDLE_CODES));
+let lastDiscountSync = null;
+
+/**
+ * Keep the cart's discount codes in step with the selected bundle.
+ *
+ * cartDiscountCodesUpdate REPLACES the whole set, so anything we do not own —
+ * a referral or employee code the visitor arrived with — is carried across
+ * deliberately. Dropping one would cost a real customer real money.
+ *
+ * Nothing here decides an amount: Shopify holds those, and state.js reads back
+ * what was actually applied, so the page cannot advertise a saving the store
+ * would not honour.
+ */
+async function syncBundleDiscount() {
+  const state = getState();
+  if (!state.ready) return;
+  const want = state.activeBundle ? BUNDLE_CODES[state.activeBundle] : null;
+  const current = (getCart()?.discountCodes || []).map((d) => d.code);
+  const preserved = current.filter((c) => !OUR_CODES.has(c));
+  const next = want ? [want, ...preserved] : preserved;
+
+  const key = [...next].sort().join('|');
+  if (key === lastDiscountSync) return;
+  lastDiscountSync = key;
+  try {
+    await setDiscountCodes(next);
+  } catch (err) {
+    lastDiscountSync = null; // let the next update retry
+    console.error('[Olto] Failed to sync bundle discount:', err);
+  }
+}
+
 function syncVariantParam(id) {
   if (!id || id === variantParamShown) return;
   variantParamShown = id;
@@ -1275,6 +1321,7 @@ function update(state) {
   if (!state.ready) return;
 
   syncVariantParam(state.baseNumericId);
+  syncBundleDiscount(); // fire and forget; guarded against redundant calls
 
   // Per-variant metadata (hero background art). Delivery no longer comes from
   // here — see DELIVERY_COPY.

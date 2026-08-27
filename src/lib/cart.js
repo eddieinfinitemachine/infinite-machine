@@ -19,8 +19,8 @@ const SESSION_PREFIX = 'cfg_';
 const URL_SESSION_PARAM = 'config';
 
 let cartId = null;
-let cartState = null;          // optimistic state — what UI bindings see
-let serverCartState = null;    // server-confirmed state — what queue decisions use
+let cartState = null; // optimistic state — what UI bindings see
+let serverCartState = null; // server-confirmed state — what queue decisions use
 let configId = null;
 let currentConfigSessionId = null;
 let handlers = [];
@@ -45,8 +45,7 @@ export async function initCart(config) {
   //   1. ?config=<id> in URL (shareable, survives reload)
   //   2. Most-recently-used session from existing cart lines
   //   3. Brand new session id
-  currentConfigSessionId =
-    readSessionFromUrl() || newSessionId();
+  currentConfigSessionId = readSessionFromUrl() || newSessionId();
 
   const stored = readStoredCartId();
   if (stored) {
@@ -167,14 +166,22 @@ export async function addLines(items) {
     }),
   }));
   try {
-    applyServerResponse(await withWriteLock(() => runCartMutation('cartLinesAdd', `
+    applyServerResponse(
+      await withWriteLock(() =>
+        runCartMutation(
+          'cartLinesAdd',
+          `
       mutation CartLinesAdd($cartId: ID!, $lines: [CartLineInput!]!) {
         cartLinesAdd(cartId: $cartId, lines: $lines) {
           cart { ${CART_FIELDS} }
           userErrors { field message }
         }
       }
-    `, { cartId, lines })));
+    `,
+          { cartId, lines }
+        )
+      )
+    );
     notify();
     return cartState;
   } catch (err) {
@@ -201,14 +208,22 @@ export async function removeLines(lineIds) {
 
   // ---- API in background (under global write lock) ----
   try {
-    applyServerResponse(await withWriteLock(() => runCartMutation('cartLinesRemove', `
+    applyServerResponse(
+      await withWriteLock(() =>
+        runCartMutation(
+          'cartLinesRemove',
+          `
       mutation CartLinesRemove($cartId: ID!, $lineIds: [ID!]!) {
         cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
           cart { ${CART_FIELDS} }
           userErrors { field message }
         }
       }
-    `, { cartId, lineIds })));
+    `,
+          { cartId, lineIds }
+        )
+      )
+    );
     notify();
     return cartState;
   } catch (err) {
@@ -260,14 +275,22 @@ export async function updateLine({ lineId, variantId, quantity, attributes }) {
   if (attributes !== undefined) update.attributes = toAttrPairs(attributes);
 
   try {
-    applyServerResponse(await withWriteLock(() => runCartMutation('cartLinesUpdate', `
+    applyServerResponse(
+      await withWriteLock(() =>
+        runCartMutation(
+          'cartLinesUpdate',
+          `
       mutation CartLinesUpdate($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
         cartLinesUpdate(cartId: $cartId, lines: $lines) {
           cart { ${CART_FIELDS} }
           userErrors { field message }
         }
       }
-    `, { cartId, lines: [update] })));
+    `,
+          { cartId, lines: [update] }
+        )
+      )
+    );
     notify();
     return cartState;
   } catch (err) {
@@ -288,6 +311,35 @@ export async function updateLineAttributes(lineId, attributes) {
 //
 //   await setCartAttributes({ _active_bundle: 'basic' });
 //   await setCartAttributes({ _active_bundle: '' });  // clear
+/**
+ * Replace the cart's discount codes.
+ *
+ * Shopify's cartDiscountCodesUpdate REPLACES the whole set rather than adding,
+ * so callers must pass every code they want to keep — see syncBundleDiscount()
+ * in src/infinite/infinite.js, which preserves any code it does not own so a
+ * referral or employee code is never silently dropped.
+ */
+export async function setDiscountCodes(codes) {
+  ensureInitialized();
+  const next = [...new Set((codes || []).filter(Boolean))];
+  return coalesce(`cart:discounts`, async () => {
+    applyServerResponse(
+      await runCartMutation(
+        'cartDiscountCodesUpdate',
+        `
+      mutation($cartId: ID!, $discountCodes: [String!]!) {
+        cartDiscountCodesUpdate(cartId: $cartId, discountCodes: $discountCodes) {
+          cart { ${CART_FIELDS} } userErrors { field message }
+        }
+      }
+    `,
+        { cartId, discountCodes: next }
+      )
+    );
+    notify();
+  });
+}
+
 export async function setCartAttributes(attrs) {
   ensureInitialized();
   const pairs = toAttrPairs(attrs);
@@ -302,13 +354,19 @@ export async function setCartAttributes(attrs) {
   }
 
   return coalesce(`cart:attrs`, async () => {
-    applyServerResponse(await runCartMutation('cartAttributesUpdate', `
+    applyServerResponse(
+      await runCartMutation(
+        'cartAttributesUpdate',
+        `
       mutation($cartId: ID!, $attributes: [AttributeInput!]!) {
         cartAttributesUpdate(cartId: $cartId, attributes: $attributes) {
           cart { ${CART_FIELDS} } userErrors { field message }
         }
       }
-    `, { cartId, attributes: pairs }));
+    `,
+        { cartId, attributes: pairs }
+      )
+    );
     notify();
   });
 }
@@ -328,6 +386,7 @@ const CART_FIELDS = `
   checkoutUrl
   totalQuantity
   attributes { key value }
+  discountCodes { code applicable }
   cost {
     subtotalAmount { amount currencyCode }
     totalAmount { amount currencyCode }
@@ -338,6 +397,7 @@ const CART_FIELDS = `
         id
         quantity
         attributes { key value }
+        discountAllocations { discountedAmount { amount currencyCode } }
         merchandise {
           ... on ProductVariant {
             id
@@ -364,16 +424,20 @@ async function createCart() {
   `);
   if (errors) throw new Error(`[Cart] createCart errors: ${JSON.stringify(errors)}`);
   const userErrors = data?.cartCreate?.userErrors;
-  if (userErrors?.length) throw new Error(`[Cart] createCart userErrors: ${JSON.stringify(userErrors)}`);
+  if (userErrors?.length)
+    throw new Error(`[Cart] createCart userErrors: ${JSON.stringify(userErrors)}`);
   return flattenCart(data.cartCreate.cart);
 }
 
 async function queryCart(id) {
-  const { data, errors } = await client.request(`
+  const { data, errors } = await client.request(
+    `
     query GetCart($id: ID!) {
       cart(id: $id) { ${CART_FIELDS} }
     }
-  `, { variables: { id } });
+  `,
+    { variables: { id } }
+  );
   if (errors) throw new Error(`[Cart] queryCart errors: ${JSON.stringify(errors)}`);
   if (!data?.cart) return null;
   return flattenCart(data.cart);
@@ -403,6 +467,13 @@ function flattenCart(cart) {
       quantity: line.quantity,
       attributes: line.attributes,
       attributesByKey: Object.fromEntries(line.attributes.map((a) => [a.key, a.value])),
+      // What Shopify actually took off this line. A code discount is allocated
+      // per line, and cost.subtotalAmount is already NET of it, so this is the
+      // only place the saving can be read back — see state.js.
+      discountedAmount: (line.discountAllocations || []).reduce(
+        (sum, a) => sum + parseFloat(a.discountedAmount?.amount || 0),
+        0
+      ),
       merchandise: line.merchandise,
     })),
   };
@@ -432,9 +503,7 @@ function newSessionId() {
 function getSessionQuantity(sessionId) {
   const cart = serverCartState || cartState;
   if (!cart?.lines?.length) return 1;
-  const sessionLine = cart.lines.find(
-    (l) => l.attributesByKey?._config_id === sessionId
-  );
+  const sessionLine = cart.lines.find((l) => l.attributesByKey?._config_id === sessionId);
   return sessionLine?.quantity || 1;
 }
 
@@ -486,7 +555,9 @@ let writeChain = Promise.resolve();
 async function withWriteLock(fn) {
   const previous = writeChain;
   let release;
-  writeChain = new Promise((r) => { release = r; });
+  writeChain = new Promise((r) => {
+    release = r;
+  });
   await previous;
   try {
     return await fn();
@@ -593,13 +664,19 @@ export async function setLineForProduct(productHandle, variantId) {
 
     if (variantId === null) {
       if (realLine) {
-        applyServerResponse(await runCartMutation('cartLinesRemove', `
+        applyServerResponse(
+          await runCartMutation(
+            'cartLinesRemove',
+            `
           mutation($cartId: ID!, $lineIds: [ID!]!) {
             cartLinesRemove(cartId: $cartId, lineIds: $lineIds) {
               cart { ${CART_FIELDS} } userErrors { field message }
             }
           }
-        `, { cartId, lineIds: [realLine.id] }));
+        `,
+            { cartId, lineIds: [realLine.id] }
+          )
+        );
         notify();
       }
       return;
@@ -607,34 +684,48 @@ export async function setLineForProduct(productHandle, variantId) {
 
     // variantId is set — either update existing real line or add new
     if (realLine) {
-      applyServerResponse(await runCartMutation('cartLinesUpdate', `
+      applyServerResponse(
+        await runCartMutation(
+          'cartLinesUpdate',
+          `
         mutation($cartId: ID!, $lines: [CartLineUpdateInput!]!) {
           cartLinesUpdate(cartId: $cartId, lines: $lines) {
             cart { ${CART_FIELDS} } userErrors { field message }
           }
         }
-      `, { cartId, lines: [{ id: realLine.id, merchandiseId: variantId }] }));
+      `,
+          { cartId, lines: [{ id: realLine.id, merchandiseId: variantId }] }
+        )
+      );
     } else {
       // New lines join the session at the session's current quantity —
       // so adding an accessory while the config qty is 2 doesn't leave the
       // accessory stuck at qty 1.
       const sessionQty = getSessionQuantity(sessionAtCall);
-      applyServerResponse(await runCartMutation('cartLinesAdd', `
+      applyServerResponse(
+        await runCartMutation(
+          'cartLinesAdd',
+          `
         mutation($cartId: ID!, $lines: [CartLineInput!]!) {
           cartLinesAdd(cartId: $cartId, lines: $lines) {
             cart { ${CART_FIELDS} } userErrors { field message }
           }
         }
-      `, {
-        cartId,
-        lines: [{
-          merchandiseId: variantId,
-          quantity: sessionQty,
-          // Use the session captured at call time, not current — the queue
-          // may have moved on (user switched configs).
-          attributes: toAttrPairs({ _config_id: sessionAtCall }),
-        }],
-      }));
+      `,
+          {
+            cartId,
+            lines: [
+              {
+                merchandiseId: variantId,
+                quantity: sessionQty,
+                // Use the session captured at call time, not current — the queue
+                // may have moved on (user switched configs).
+                attributes: toAttrPairs({ _config_id: sessionAtCall }),
+              },
+            ],
+          }
+        )
+      );
     }
     notify();
   });
@@ -647,7 +738,9 @@ export async function setLineForProduct(productHandle, variantId) {
 // just no instant UI update).
 function buildMerchandise(variantGid) {
   if (!productsRef) return null;
-  const all = [productsRef.main, productsRef.wrap, ...(productsRef.accessories || [])].filter(Boolean);
+  const all = [productsRef.main, productsRef.wrap, ...(productsRef.accessories || [])].filter(
+    Boolean
+  );
   for (const product of all) {
     const variant = product.variants.find((v) => v.id === variantGid);
     if (!variant) continue;
