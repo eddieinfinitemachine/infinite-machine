@@ -81,7 +81,7 @@ context params as "what they were looking at when they pressed it". Only
 | Event | Fires when | Extra params |
 |---|---|---|
 | `view_configurator` | mount | — |
-| `begin_checkout` | Order pressed (US/CA) | `checkout_url`, `olto_pay_mode` |
+| `begin_checkout` | Order pressed (US/CA) | `checkout_url`, `olto_pay_mode` — Cash and Finance go to the same checkout, so this is the only place the intent is recorded |
 | `save_configuration` | lead form submitted from the **Save** flow | — |
 | `register_interest` | lead form submitted from the **rest-of-world** flow | — |
 | `form_submit` | either flow submits | `form_name`, `form_flow` |

@@ -848,20 +848,29 @@ async function clearConfiguration() {
 }
 
 /**
- * Shop Pay cannot be told WHICH installment term to preselect — no cart or
- * checkout parameter exists for it, and the buyer picks the term inside Shop
- * Pay (Joseph, Aug 27: "when you click the finance option, it doesn't actually
- * pass along to shop").
+ * Finance and Cash go to the SAME checkout. Deliberately.
  *
- * What IS possible is landing them on that screen instead of the generic
- * checkout. `payment=shop_pay` is documented for cart permalinks and works on
- * the Storefront checkoutUrl too — verified against a real cart on 2026-08-27,
- * which redirected to shop.app/checkout/.../shoppay?...&redirect_source=cart_permalink.
+ * Two things cannot be done, and one thing should not be:
+ *
+ *  - The installment TERM cannot be preselected. No cart or checkout parameter
+ *    exists for it; the buyer picks it inside Shop Pay (Joseph, Aug 27: "when
+ *    you click the finance option, it doesn't actually pass along to shop").
+ *
+ *  - `payment=shop_pay` DOES work on the Storefront checkoutUrl — it redirects
+ *    to shop.app/checkout/.../shoppay. It was shipped on Aug 27 and pulled the
+ *    same day: that screen demands a Shop account login before the buyer has
+ *    seen the cart, the total or the terms (obodom: "i have to login. if so i
+ *    think its no good"). A login wall in front of a $4k consideration purchase
+ *    is a worse trade than a click.
+ *
+ * The plain checkout already offers "Shop Pay · Pay in full or in installments"
+ * as a payment method — verified on a real checkout, reachable as a guest. So
+ * the buyer sees everything first and only authenticates at the moment they
+ * actually choose to finance. The toggle stays an estimator, which is what the
+ * copy says it is.
  */
 function checkoutUrlForMode() {
-  const url = getCheckoutUrl();
-  if (!url || getState().payMode !== 'finance') return url;
-  return `${url}${url.includes('?') ? '&' : '?'}payment=shop_pay`;
+  return getCheckoutUrl();
 }
 
 function primaryAction() {
