@@ -9,6 +9,7 @@
 import baseConfig from '../configs/olto.js';
 import {
   addLines,
+  getCart,
   getCheckoutUrl,
   getCurrentConfigSessionId,
   initCart,
@@ -120,6 +121,7 @@ export async function mount(root) {
 
   setProducts(products);
   await initCart(config);
+  await pruneForeignSessions('boot');
   // KITS (page-defined bundles) feed the store's exact-set active detection
   initState({
     config,
@@ -513,6 +515,52 @@ function changeQty(delta) {
 //   <baseVariantId>.<wrapColor|''>.<qty>.<payMode>.<accHandle~accHandle...>
 // Anyone opening the link gets the design rebuilt into a fresh cart session.
 
+/**
+ * One cart, one configuration.
+ *
+ * The Shopify cart is browser-scoped (localStorage olto_cart_olto) but the
+ * config session is URL-scoped (?config=). The UI filters lines by
+ * `_config_id`; Shopify checkout does not — it charges the whole cart. So any
+ * URL-supplied session the cart has never seen strands the previous lines:
+ * invisible on the page, still billed.
+ *
+ * Measured on staging before this existed: build a config ($4,195 shown),
+ * open a ?d= share link, then a ?config= link, and the page read $3,495 while
+ * the cart held 10 lines across 3 sessions totalling $11,839 — three bikes.
+ * Both paths come from the SAVE-AND-SHARE flow, which is the main lead loop,
+ * and nothing reconciles them because the cart drawer that could show or
+ * remove other sessions is disabled (openCartDrawer has no call sites).
+ *
+ * Deliberately fixed here and not in lib/cart.js: multi-config is a real
+ * feature there (switchToConfig + the drawer) that the parts-kit engine still
+ * uses, and that bundle is the rollback path. This UI is single-config, so it
+ * enforces that itself. Buying two Oltos is what `quantity` is for.
+ */
+async function pruneForeignSessions(reason) {
+  const current = getCurrentConfigSessionId();
+  if (!current) return 0;
+  const foreign = (getCart()?.lines || [])
+    .filter((l) => {
+      // Optimistic lines are client-side only and have no server id to remove.
+      if (!l.id || String(l.id).startsWith('tmp_')) return false;
+      return l.attributesByKey?._config_id !== current;
+    })
+    .map((l) => l.id);
+  if (!foreign.length) return 0;
+  try {
+    await removeLines(foreign);
+    console.warn(
+      `[Olto] Dropped ${foreign.length} cart line(s) from a previous configuration (${reason}). ` +
+        'This cart shows one configuration at a time.'
+    );
+    return foreign.length;
+  } catch (err) {
+    // Never block the page — but this one matters, so say so loudly.
+    console.error('[Olto] Failed to clear stale cart lines; checkout may overcharge:', err);
+    return 0;
+  }
+}
+
 function readDesignParam() {
   const raw = new URLSearchParams(window.location.search).get('d');
   if (!raw) return null;
@@ -530,6 +578,9 @@ function readDesignParam() {
 
 async function applyDesign(design) {
   startNewConfigSession();
+  // The shared link rebuilds THIS exact Olto, so it replaces whatever was in
+  // the cart rather than stacking on top of it.
+  await pruneForeignSessions('shared design');
   const items = [{ variantId: gidForVariant(design.base), quantity: design.qty }];
   const wrapVariant = design.wrap ? wrapVariantsByColor.get(design.wrap) : null;
   if (wrapVariant) items.push({ variantId: wrapVariant.id, quantity: design.qty });
