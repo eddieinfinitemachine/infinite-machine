@@ -903,12 +903,42 @@ function leadFormSnapshot() {
  * 16 im_* hidden inputs as the form's last children and latches
  * `data-im-stamped` so it will not re-stamp.
  */
+/**
+ * Write the snapshot into the adopted Webflow form's hidden inputs.
+ *
+ * Each logical field accepts several input names, mirroring how crm-backend
+ * itself matches them (webhooks/webflow.ts:202,209 — /^name$/|/full.?name/ and
+ * /^location$/|/country/). Two reasons that matters:
+ *
+ *  - Webflow refuses to publish an API-created input named `name` or
+ *    `location`. It accepts the value into the data model and then emits
+ *    `field` anyway, so a form built through the API cannot use those two.
+ *    Production's form was authored in the Designer and does use them.
+ *  - It means a field rename in the Designer degrades to "that one field is
+ *    empty" rather than silently dropping the lead's country.
+ *
+ * Only ever SETS `.value` on inputs that already exist — it must never add,
+ * remove or re-render children of that form, because im-attribution stamps its
+ * 16 im_* hidden inputs as the form's last children and latches
+ * `data-im-stamped` so it will not re-stamp.
+ */
+const LEAD_FIELD_NAMES = {
+  location: ['location', 'country'],
+  variant: ['variant'],
+  wrap: ['wrap'],
+  pack: ['pack'],
+  quantity: ['quantity'],
+  accessories: ['accessories'],
+  design_url: ['design_url'],
+};
+
 function fillLeadFormSnapshot() {
   const form = app.querySelector('[data-wf-form-slot] form');
   if (!form) return; // standalone demo — no Webflow form adopted
   const snap = leadFormSnapshot();
-  for (const [name, value] of Object.entries(snap)) {
-    const input = form.querySelector(`input[name="${name}"]`);
+  for (const [field, value] of Object.entries(snap)) {
+    const names = LEAD_FIELD_NAMES[field] || [field];
+    const input = names.map((n) => form.querySelector(`input[name="${n}"]`)).find(Boolean);
     if (input) input.value = value;
   }
 }
