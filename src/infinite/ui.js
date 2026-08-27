@@ -143,13 +143,18 @@ export const KITS = [
     label: 'Olto Commuter',
     tagline: 'Everything you need to commute every day.',
     popular: true,
+    // Outdoor Cover (bottom-cover) was pulled 2026-08-27: it is not in the
+    // olto-accessories Shopify collection, so the configurator could never
+    // resolve it and the kit silently shipped four of the five items the card
+    // advertised. Contents $326 -> $302, saving $126 -> $102; the +$200 anchor
+    // is unchanged. The OLTO-COMMUTER-BUNDLE discount code was moved to $102 to
+    // match — the page reads the saving back from Shopify, so the two must agree.
     price: 200,
     items: [
       'olto-sidewalls',
       'olto-charging-dock',
       'olto-phone-mount',
       'olto-water-bottle-holder',
-      'bottom-cover',
     ],
   },
   {
