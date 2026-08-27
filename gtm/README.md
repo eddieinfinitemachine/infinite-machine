@@ -120,3 +120,50 @@ with its trimmed label, so a button added later is covered from the day it ships
 **A bundle tap emits both `ui_click` and `select_bundle`.** Binding a conversion
 to `ui_click` would double-count it. Use it for the behavioural picture —
 what gets touched, in what order, and what never gets touched at all.
+
+---
+
+## Getting the events into GA4
+
+`GTM-5ZBFGDCB_olto_configurator_events.json` — import with **Admin → Import
+Container → Merge → Rename conflicting**. It adds and removes nothing existing:
+
+- **2 triggers** — `CE - Olto configurator events` (regex over the 20 named
+  events) and `CE - Olto ui_click`
+- **2 GA4 tags** — both send `eventName = {{Event}}`, so each event arrives in
+  GA4 under the name the page pushed. One tag covers all 20; the click-coverage
+  tag is separate so it can be paused on its own if the volume is unwanted.
+- **23 dataLayer variables** — the shared configuration context plus the
+  per-event params.
+
+Two tags rather than twenty because the event name is passed through rather than
+hard-coded. Adding an event to the contract means editing one regex, not
+building another tag.
+
+### Then register the custom dimensions in GA4 — this is the step people miss
+
+GA4 **collects** an event parameter automatically but will not let you report on
+it until it is registered. Admin → Custom definitions → Create custom dimension,
+scope **Event**, one per parameter you want to break down by:
+
+`olto_selected_color`, `olto_selected_bundle`, `olto_accessory`, `olto_pay_mode`,
+`olto_variant`, `olto_wrap`, `olto_pack`, `olto_region`, `olto_country`,
+`option_name`, `option_value`, `control`, `control_detail`, `stage`, `channel`,
+`form_flow`.
+
+**Registration is not retroactive.** A dimension reports from the day it is
+created, so anything collected before then stays invisible in reports. Register
+them at the same time as the import, not after a week of data.
+
+`olto_value` and `olto_savings` are numbers — register those as custom
+**metrics** (scope Event, unit Currency) rather than dimensions.
+
+### What you can answer once it is in
+
+- Which colours get picked, and which get picked and then abandoned
+- Bundle attach rate, and which kit
+- Cash vs Finance intent (`select_pay_mode`, and `olto_pay_mode` on `begin_checkout`)
+- Which accessories are opened as a video but never added
+- Where people quit — `clear_configuration` with `stage = armed` is someone who
+  thought better of wiping their build
+- What never gets touched at all, from `ui_click`
