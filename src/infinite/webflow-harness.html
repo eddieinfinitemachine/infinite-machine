@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Webflow host harness</title>
+<!--
+  Local stand-in for the /olto/configure Webflow page, so the three things the
+  standalone demo CANNOT exercise are testable before touching Webflow:
+
+    1. the [sf-token][sf-domain] Shopyflow host im-attribution needs to push
+       im_* onto the Shopify cart,
+    2. adoption of the real #wf-form-Olto-Interest-Form (moved, not cloned) with
+       its 16 im_* hidden inputs and data-im-stamped latch intact,
+    3. the config snapshot's exact value formats (location as a country NAME,
+       accessories as comma-joined Shopify product titles).
+
+  The inline script below is a faithful reduction of im-attribution@1.5.0's
+  stampForm()/MutationObserver. Run:  PORT=3999 pnpm dev  ->  /webflow-harness.html
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<style>
+  /* Webflow's own base rules, reproduced so the harness matches the real page. */
+  .w-form-done, .w-form-fail { display: none; }
+</style>
+</head>
+<body>
+  <!-- Mimics the Shopyflow host element injected at runtime on the live page -->
+  <div sf-token="eefb42e32220791a7472aaa5d2cf2182" sf-domain="shop.infinitemachine.com" hidden></div>
+
+  <!-- Mimics the Webflow-authored interest modal + native form -->
+  <div data-modal-name="interest" style="display:none">
+    <div class="w-form">
+      <form id="wf-form-Olto-Interest-Form" name="wf-form-Olto-Interest-Form" data-name="Olto Interest Form">
+        <input type="text" name="name" data-name="name" placeholder="Name" required/>
+        <input type="email" name="email-address" data-name="email-address" placeholder="Email" required/>
+        <input type="tel" name="phone number" data-name="phone number" placeholder="Phone" required/>
+        <input type="hidden" name="product" value="Olto"/>
+        <input type="hidden" name="location"/>
+        <input type="hidden" name="variant"/>
+        <input type="hidden" name="wrap"/>
+        <input type="hidden" name="pack"/>
+        <input type="hidden" name="quantity"/>
+        <input type="hidden" name="accessories"/>
+        <input type="hidden" name="design_url"/>
+        <input type="submit" value="Submit"/>
+      </form>
+      <div class="w-form-done">Thank you! Your submission has been received!</div>
+      <div class="w-form-fail">Oops! Something went wrong.</div>
+    </div>
+  </div>
+
+  <!-- Mimics im-attribution stamping every form on the page -->
+  <script>
+  (function(){
+    var FIELDS={im_visitor:'11111111-2222-3333-4444-555555555555',im_utm_source:'meta',im_utm_medium:'paid',
+      im_utm_campaign:'IM-GRO-002 Olto Offer Test',im_utm_content:'tr-woman_green_olto',im_utm_term:'120251133000990551',
+      im_gclid:'',im_fbclid:'PAcGRvZg',im_referrer:'instagram.com',im_landing:'/olto',im_first_ts:'1787656257327',
+      im_visits:'1',im_referral_code:'',im_offer:'tr',im_fbp:'fb.1.1787656257782.761761002337404711',im_fbc:'fb.1.x.y'};
+    function stampForm(f){
+      if(!f||f.getAttribute('data-im-stamped'))return;
+      f.setAttribute('data-im-stamped','1');
+      Object.keys(FIELDS).forEach(function(n){
+        if(f.querySelector('input[name="'+n+'"]'))return;
+        var i=document.createElement('input');i.type='hidden';i.name=n;i.value=FIELDS[n];f.appendChild(i);
+      });
+    }
+    function scan(){document.querySelectorAll('form').forEach(stampForm);}
+    scan();
+    new MutationObserver(scan).observe(document.documentElement,{childList:true,subtree:true});
+  })();
+  </script>
+
+  <div data-olto-configurator></div>
+  <script src="/olto-configurator.js"></script>
+</body></html>

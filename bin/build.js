@@ -8,7 +8,16 @@ const BUILD_DIRECTORY = 'dist';
 const PRODUCTION = process.env.NODE_ENV === 'production';
 
 // Config entrypoint files
-const ENTRY_POINTS = ['src/configurator.js', 'src/tesla/tesla.js'];
+// src/configurator.js         — the Webflow parts-kit engine (P1 + Olto rollback)
+// src/olto-configurator.js    — the Olto configurator on the Webflow page (a
+//                               top-level path so it emits dist/olto-configurator.js
+//                               and loadPageScript('olto-configurator.js') resolves)
+// src/infinite/standalone.js  — the same UI for the Vercel demo shell
+const ENTRY_POINTS = [
+  'src/configurator.js',
+  'src/olto-configurator.js',
+  'src/infinite/standalone.js',
+];
 
 // Config dev serving
 const LIVE_RELOAD = !PRODUCTION;
@@ -27,8 +36,14 @@ if (missing.length) {
 
 // Demo page: copy the Tesla-style configurator shell into dist so the dev
 // server (servedir = dist) serves it at /tesla/.
-mkdirSync(join(BUILD_DIRECTORY, 'tesla'), { recursive: true });
-copyFileSync('src/tesla/index.html', join(BUILD_DIRECTORY, 'tesla', 'index.html'));
+mkdirSync(join(BUILD_DIRECTORY, 'infinite'), { recursive: true });
+copyFileSync('src/infinite/index.html', join(BUILD_DIRECTORY, 'infinite', 'index.html'));
+
+// Dev-only: the Webflow host harness (see the file header). Never shipped —
+// dist/webflow-harness.html is gitignored and no Webflow page references it.
+if (!PRODUCTION) {
+  copyFileSync('src/infinite/webflow-harness.html', join(BUILD_DIRECTORY, 'webflow-harness.html'));
+}
 
 // Create context
 const context = await esbuild.context({
@@ -49,6 +64,9 @@ const context = await esbuild.context({
       process.env.SHOPIFY_API_VERSION || '2026-04'
     ),
   },
+  // infinite.css is imported as a string and injected as a <style> at mount, so
+  // the stylesheet ships inside the bundle instead of as a second versioned URL.
+  loader: { '.css': 'text' },
   external: ['jquery', 'gsap', 'gsap/ScrollTrigger', 'swiper'],
 });
 

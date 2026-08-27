@@ -2,6 +2,11 @@
 // listeners — infinite.js renders this once, then mutates the dynamic bits
 // in update().
 
+// The same 249-entry list the parts-kit configurator's country <select> used,
+// so the `location` string submitted to the CRM is identical to what
+// /olto/configure has always sent.
+import { countries } from '../lib/countries.js';
+
 // Official IM wordmark (from ~/Code/active/im-creative-library/public/im-wordmark.svg),
 // inlined with currentColor so it inherits text color.
 // Official red Olto wordmark (Brand Files/Logos/2026_Current/Vehicle/OLTO Wordmark-Red.svg)
@@ -212,6 +217,10 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <span class="rail_val rail_val--ship"><span data-rail-delivery>Now</span><span class="rail_dot"></span></span>
         </div>
         <div class="rail_row">
+          <span class="rail_key">Ship to</span>
+          <span class="rail_val" data-rail-country>&mdash;</span>
+        </div>
+        <div class="rail_row">
           <span class="rail_key">Starting at</span>
           <span class="rail_val">${formatMoney(basePrice)}</span>
         </div>
@@ -326,6 +335,20 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <span>Total</span>
           <span data-summary-total></span>
         </div>
+        <!-- Olto ships in the US only. Quiet by design: geo-IP resolves this
+             for almost everyone, but it is the one field the CRM splits US from
+             international on (webflow_submissions.country) and the visitor's
+             way to correct a bad geo read, so it has to be reachable. -->
+        <p class="shipto">
+          <span class="shipto_key">Ship to</span>
+          <span class="shipto_val">
+            <select class="shipto_select" data-country aria-label="Shipping country">
+              ${countries
+                .map((c) => `<option value="${esc(c.Code)}">${esc(c.Name)}</option>`)
+                .join('')}
+            </select>
+          </span>
+        </p>
         <p class="summary_note">Taxes and shipping calculated at checkout</p>
         <div class="config-actions">
           <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
@@ -352,14 +375,19 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       </div>
       <div class="orderbar_actions">
         <button type="button" class="orderbar_save" data-save>Save</button>
-        <button type="button" class="orderbar_cta" data-cta>Order</button>
+        <!-- An anchor, not a button, carrying sf-checkout: im-attribution's
+             capture-phase backstop keys on [sf-checkout] and on anchors to the
+             checkout host, and it re-stamps a cart built between two
+             MutationObserver batches. A JS-only navigation is invisible to it.
+             href is kept current by update(). -->
+        <a class="orderbar_cta" data-cta sf-checkout="1" href="#" role="button">Order</a>
       </div>
     </footer>
 
     <!-- Accessory instruction clip (Bunny HLS), same source the live
          configurator plays — modules/accessory-video.js -->
-    <div class="modal modal--video" data-video-modal hidden>
-      <div class="modal_backdrop" data-video-close></div>
+    <div class="leadmodal leadmodal--video" data-video-modal hidden>
+      <div class="leadmodal_backdrop" data-video-close></div>
       <div class="vid">
         <div class="vid_head">
           <h3 class="vid_title" data-video-title></h3>
@@ -369,30 +397,25 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       </div>
     </div>
 
-    <div class="modal" data-interest hidden>
-      <div class="modal_backdrop" data-interest-close></div>
-      <div class="modal_sheet">
-        <h3 class="modal_title">Not in your region yet</h3>
-        <p class="modal_body">
-          Olto is currently available in the United States and Canada. Register your
-          interest and we&rsquo;ll let you know when Olto reaches you.
+    <div class="leadmodal" data-save-modal hidden>
+      <div class="leadmodal_backdrop" data-save-close></div>
+      <div class="leadmodal_sheet">
+        <h3 class="leadmodal_title" data-save-title>Save your design</h3>
+        <p class="leadmodal_body" data-save-copy>
+          We&rsquo;ll copy a link that rebuilds this exact Olto &mdash; share it or pick
+          up where you left off on any device.
         </p>
-        <a class="modal_cta" href="https://www.infinitemachine.com" target="_blank" rel="noopener">
-          Visit infinitemachine.com
-        </a>
-        <button type="button" class="modal_close" data-interest-close>Close</button>
-      </div>
-    </div>
 
-    <div class="modal" data-save-modal hidden>
-      <div class="modal_backdrop" data-save-close></div>
-      <div class="modal_sheet">
+        <!-- The live Webflow form (#wf-form-Olto-Interest-Form, 203 submissions)
+             is MOVED into this slot by src/olto-configurator.js. Moving rather
+             than cloning keeps Webflow's bound AJAX handler, and the im_* hidden
+             inputs travel with the node. Never re-render its children:
+             im-attribution's data-im-stamped latch would not re-stamp it. -->
+        <div data-wf-form-slot hidden></div>
+
+        <!-- Fallback for the standalone demo, where no Webflow form exists.
+             olto-configurator.js removes this once the real form is adopted. -->
         <form data-save-form novalidate>
-          <h3 class="modal_title">Save your design</h3>
-          <p class="modal_body">
-            We&rsquo;ll copy a link that rebuilds this exact Olto &mdash; share it or pick
-            up where you left off on any device.
-          </p>
           <div class="saveform_row">
             <input class="saveform_field" type="text" name="first_name" placeholder="First name" autocomplete="given-name" />
             <input class="saveform_field" type="text" name="last_name" placeholder="Last name" autocomplete="family-name" />
@@ -400,18 +423,21 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <input class="saveform_field" type="email" name="email" placeholder="Email" autocomplete="email" inputmode="email" />
           <input class="saveform_field" type="tel" name="phone" placeholder="Phone" autocomplete="tel" inputmode="tel" />
           <p class="saveform_error" data-save-error hidden></p>
-          <button type="submit" class="modal_cta">Save my design</button>
-          <button type="button" class="modal_close" data-save-close>Close</button>
+          <button type="submit" class="leadmodal_cta">Save my design</button>
         </form>
+
+        <!-- Outside the fallback form on purpose: that form is removed once the
+             Webflow form is adopted, and the close affordance must survive. -->
+        <button type="button" class="leadmodal_close" data-save-close>Close</button>
         <div data-save-done hidden>
-          <h3 class="modal_title">Design saved</h3>
-          <p class="modal_body" data-save-done-msg>Link copied to your clipboard.</p>
+          <h3 class="leadmodal_title">Design saved</h3>
+          <p class="leadmodal_body" data-save-done-msg>Link copied to your clipboard.</p>
           <p class="savedone_link" data-save-link></p>
-          <button type="button" class="modal_cta modal_cta--alt" data-save-image>
+          <button type="button" class="leadmodal_cta modal_cta--alt" data-save-image>
             Download as image
           </button>
           <p class="saveform_error" data-save-image-note hidden></p>
-          <button type="button" class="modal_cta" data-save-close>Done</button>
+          <button type="button" class="leadmodal_cta" data-save-close>Done</button>
         </div>
       </div>
     </div>

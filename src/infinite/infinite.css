@@ -60,7 +60,25 @@
       format('opentype');
 }
 
-:root {
+/* ---------------------------------------------------------------------------
+   Scoping.
+
+   This stylesheet is injected into the live Webflow page, which carries the
+   whole site stylesheet, Webflow's normalize, IX2 and several third-party
+   widgets. Anything global here would reshape the entire site — and Webflow's
+   own body/button/img rules would deform this UI in return.
+
+   Everything is scoped to `.olto-cfg`, the class mount() puts on the root
+   element in BOTH hosts (the Webflow page's [data-olto-configurator] and the
+   standalone demo's .olto-cfg). Tokens live on the same element rather than :root:
+   every region here is a DOM descendant of the mount, so they inherit normally
+   even where position:fixed takes them out of flow.
+
+   :where() is used for the reset rules because scoping must add REACH, not
+   WEIGHT — written plainly, `.olto-cfg button` is (0,1,1) and outranks
+   `.swatch` (0,1,0), which silently blanks every colour swatch.
+   --------------------------------------------------------------------------- */
+.olto-cfg {
   --ink: #252525; /* oklch(0.145 0 0) */
   --ink-2: #6a6a6a;
   --ink-3: #9a9a9a;
@@ -77,36 +95,123 @@
   --ease-im: cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
-* {
+:where(.olto-cfg),
+:where(.olto-cfg) *,
+:where(.olto-cfg) *::before,
+:where(.olto-cfg) *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
+/* Was `body` + `.olto-cfg`; both collapse onto the mount.
+   font-size/line-height are PINNED rather than inherited: infinitemachine.com
+   sets a responsive root scale (body computes to 25.6px there vs 16px
+   standalone) and anything without an explicit size would inherit it. */
+.olto-cfg {
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-align: left;
   font-family: var(--font-text);
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
-}
-
-#app {
+  -webkit-text-size-adjust: 100%;
   max-width: 640px;
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
 }
 
-button {
+:where(.olto-cfg) button {
   font-family: inherit;
   border: 0;
   background: none;
   cursor: pointer;
   color: inherit;
+}
+
+/* The adopted Webflow form arrives wearing Webflow's own form classes.
+   Confined to the slot so it cannot outrank the fallback form's classes. */
+:where(.olto-cfg) .w-form {
+  margin: 0;
+}
+
+:where(.olto-cfg) [data-wf-form-slot] .w-input,
+:where(.olto-cfg) [data-wf-form-slot] input[type='text'],
+:where(.olto-cfg) [data-wf-form-slot] input[type='email'],
+:where(.olto-cfg) [data-wf-form-slot] input[type='tel'] {
+  width: 100%;
+  height: auto;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 14px;
+  margin-bottom: 10px;
+}
+
+:where(.olto-cfg) [data-wf-form-slot] input[type='submit'] {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--bg);
+  background: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  padding: 15px 20px;
+  cursor: pointer;
+}
+
+:where(.olto-cfg) .w-form-done,
+:where(.olto-cfg) .w-form-fail {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--chip);
+  font-size: 0.9rem;
+}
+
+/* ---------- Ship to ----------
+   Deliberately not a form control: it sits with the summary rows, reads as
+   text, and only looks like a picker on hover/focus. */
+.olto-cfg .shipto {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 0;
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+
+.olto-cfg .shipto_select {
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin-right: -4px;
+  text-align: right;
+  text-align-last: right;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.olto-cfg .shipto_select:hover {
+  color: var(--ink);
+  background: var(--chip);
+}
+
+.olto-cfg .shipto_select:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 1px;
 }
 
 /* ---------- Boot / error ---------- */
@@ -985,22 +1090,22 @@ button {
 /* ---------- Modals ----------
    Base overlay shared by the video, interest and save-design dialogs. (Lost
    with the nudge CSS when the load-time pop-up came out on Aug 26 — without
-   it .modal is a zero-height static box and its contents render into the page
+   it .leadmodal is a zero-height static box and its contents render into the page
    flow instead of over it, which is why the accessory clips looked dead.) */
 
-.modal {
+.leadmodal {
   position: fixed;
   inset: 0;
   z-index: 50;
 }
 
-.modal_backdrop {
+.leadmodal_backdrop {
   position: absolute;
   inset: 0;
   background: rgba(23, 24, 26, 0.4);
 }
 
-.modal_sheet {
+.leadmodal_sheet {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -1013,20 +1118,20 @@ button {
   text-align: center;
 }
 
-.modal_title {
+.leadmodal_title {
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 500;
 }
 
-.modal_body {
+.leadmodal_body {
   margin-top: 10px;
   font-size: 14px;
   line-height: 1.5;
   color: var(--ink-2);
 }
 
-.modal_cta {
+.leadmodal_cta {
   display: block;
   margin-top: 20px;
   padding: 14px;
@@ -1038,7 +1143,7 @@ button {
   text-decoration: none;
 }
 
-.modal_close {
+.leadmodal_close {
   margin-top: 12px;
   padding: 10px;
   width: 100%;
@@ -1048,7 +1153,7 @@ button {
 
 /* ---------- Accessory video ---------- */
 
-.modal--video .modal_backdrop {
+.leadmodal--video .leadmodal_backdrop {
   background: rgba(12, 12, 13, 0.82);
 }
 
@@ -1104,13 +1209,13 @@ button {
 
 /* ---------- Save-design lead form ---------- */
 
-/* .modal_cta is sized by display:block on <a>; buttons need the width spelled out */
-button.modal_cta {
+/* .leadmodal_cta is sized by display:block on <a>; buttons need the width spelled out */
+.olto-cfg button.leadmodal_cta {
   width: 100%;
 }
 
 /* Secondary modal action (Download as image) — outlined, not filled */
-.modal_cta--alt {
+.leadmodal_cta--alt {
   background: var(--bg);
   color: var(--ink);
   border: 1px solid var(--ink);
@@ -1214,7 +1319,7 @@ button.modal_cta {
     --pane-top: 30px;
   }
 
-  #app {
+  .olto-cfg {
     max-width: none;
   }
 
@@ -1288,7 +1393,7 @@ button.modal_cta {
   }
 
   /* Modals read as centered dialogs, not bottom sheets */
-  .modal_sheet {
+  .leadmodal_sheet {
     bottom: auto;
     top: 50%;
     transform: translate(-50%, -50%);
@@ -1337,16 +1442,16 @@ button.modal_cta {
 }
 
 @media (min-width: 1140px) {
-  #app.is-rail {
+  .olto-cfg.is-rail {
     --rail-w: 292px;
     --sheet-w: 460px;
   }
 
-  #app.is-rail .topbar {
+  .olto-cfg.is-rail .topbar {
     display: none; /* the wordmark lives in the rail */
   }
 
-  #app.is-rail .rail {
+  .olto-cfg.is-rail .rail {
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -1363,39 +1468,39 @@ button.modal_cta {
 
   /* Configuration fills the leftover rail height: the item list scrolls,
      Total + Clear stay pinned at the rail's foot (like the live site) */
-  #app.is-rail .rail_block--config {
+  .olto-cfg.is-rail .rail_block--config {
     display: flex;
     flex-direction: column;
     flex: 1;
     min-height: 0;
   }
 
-  #app.is-rail .rail_block--config .summary {
+  .olto-cfg.is-rail .rail_block--config .summary {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
   }
 
-  #app.is-rail .rail_mark {
+  .olto-cfg.is-rail .rail_mark {
     color: var(--ink);
   }
 
-  #app.is-rail .rail_olto {
+  .olto-cfg.is-rail .rail_olto {
     margin-top: 10px;
   }
 
-  #app.is-rail .rail_olto svg {
+  .olto-cfg.is-rail .rail_olto svg {
     height: 40px;
     width: auto;
     display: block;
   }
 
-  #app.is-rail .rail_facts {
+  .olto-cfg.is-rail .rail_facts {
     margin-top: 26px;
     border-top: 1px solid var(--line);
   }
 
-  #app.is-rail .rail_row {
+  .olto-cfg.is-rail .rail_row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1404,32 +1509,32 @@ button.modal_cta {
     font-size: 13.5px;
   }
 
-  #app.is-rail .rail_key {
+  .olto-cfg.is-rail .rail_key {
     color: var(--ink-2);
   }
 
-  #app.is-rail .rail_val {
+  .olto-cfg.is-rail .rail_val {
     font-weight: 500;
   }
 
-  #app.is-rail .rail_val--ship {
+  .olto-cfg.is-rail .rail_val--ship {
     display: flex;
     align-items: center;
     gap: 7px;
   }
 
-  #app.is-rail .rail_dot {
+  .olto-cfg.is-rail .rail_dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--green);
   }
 
-  #app.is-rail .rail_block {
+  .olto-cfg.is-rail .rail_block {
     margin-top: 30px;
   }
 
-  #app.is-rail .rail_heading {
+  .olto-cfg.is-rail .rail_heading {
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.08em;
@@ -1439,35 +1544,35 @@ button.modal_cta {
     border-bottom: 1px solid var(--line);
   }
 
-  #app.is-rail .rail_list {
+  .olto-cfg.is-rail .rail_list {
     list-style: none;
   }
 
-  #app.is-rail .rail_list li {
+  .olto-cfg.is-rail .rail_list li {
     padding: 11px 0;
     border-bottom: 1px solid var(--line);
     font-size: 13.5px;
   }
 
-  #app.is-rail .rail_block .summary_total {
+  .olto-cfg.is-rail .rail_block .summary_total {
     font-size: 13.5px;
   }
 
   /* Hero re-anchors beside the rail; everything else is inherited from the
      two-pane tier above. */
-  #app.is-rail .hero {
+  .olto-cfg.is-rail .hero {
     left: var(--rail-w);
   }
 
   /* The rail carries the wordmark, price anchor and delivery — the sheet
      opens straight into Payment (hide the whole block, not just its children:
      an empty intro left a dead 34px band above the first section) */
-  #app.is-rail .intro {
+  .olto-cfg.is-rail .intro {
     display: none;
   }
 
   /* ...and the configuration summary */
-  #app.is-rail .opt--summary {
+  .olto-cfg.is-rail .opt--summary {
     display: none;
   }
 }
