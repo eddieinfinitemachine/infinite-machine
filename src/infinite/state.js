@@ -22,6 +22,7 @@ const state = {
   bikeLine: null,
   wrapLine: null,
   accessoryLines: [],
+  accessoryQty: {}, // handle -> count per configuration (absent = 1)
   activeBundle: null, // bundle handle when session accessories exactly match a bundle
   bundleSavings: 0, // item value minus the matched bundle's tier price
   quantity: 1,
@@ -88,9 +89,20 @@ function recompute(cart) {
 
   if (state.bikeLine) state.baseNumericId = numericId(state.bikeLine.merchandise.id);
 
-  // One quantity applies to every line in the session ("N sets of this
-  // configuration") — same semantic as modules/config-quantity.js.
-  state.quantity = lines[0]?.quantity || 1;
+  // The CONFIGURATION quantity — "N sets of this config", same semantic as
+  // modules/config-quantity.js. Anchored to the bike line, not lines[0]:
+  // accessories can now carry their own multiple (two helmets on one bike), so
+  // a line's raw quantity is configQty × its own count and only the bike is
+  // guaranteed to be exactly configQty.
+  state.quantity = state.bikeLine?.quantity || lines[0]?.quantity || 1;
+
+  // Per-accessory count, independent of how many configurations are ordered.
+  // A cart line holds configQty × accQty, so this divides the anchor back out.
+  state.accessoryQty = {};
+  for (const l of state.accessoryLines) {
+    const each = Math.max(1, Math.round((l.quantity || 1) / state.quantity));
+    state.accessoryQty[l.merchandise.product.handle] = each;
+  }
 
   // Client-side sum of session line prices — matches modules/price-display.js.
   // Excludes tax/shipping; Shopify is authoritative at checkout.

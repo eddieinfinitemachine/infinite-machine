@@ -22,6 +22,8 @@ let cartId = null;
 let cartState = null; // optimistic state — what UI bindings see
 let serverCartState = null; // server-confirmed state — what queue decisions use
 let configId = null;
+// Main product handle — the quantity anchor for a session. See getSessionQuantity.
+let mainHandle = null;
 let currentConfigSessionId = null;
 let handlers = [];
 let sessionHandlers = [];
@@ -41,6 +43,7 @@ export function setProducts(p) {
 
 export async function initCart(config) {
   configId = config.id;
+  mainHandle = config.product?.handle || null;
   // Session id resolution order:
   //   1. ?config=<id> in URL (shareable, survives reload)
   //   2. Most-recently-used session from existing cart lines
@@ -497,14 +500,23 @@ function newSessionId() {
   return `${SESSION_PREFIX}${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-// What qty should a new line in this session use? Pick the qty from any
-// existing line in the session (they're kept in sync by config-quantity).
-// Defaults to 1 if the session has no lines yet.
+// What qty should a new line in this session use? The session's CONFIGURATION
+// quantity — "N sets of this config" — which is the main product's line.
+//
+// Anchored to the main product rather than "any session line": accessories can
+// now carry their own multiple (two helmets on one bike), so the first line to
+// hand is no longer a reliable stand-in. Without the anchor, adding a second
+// accessory after bumping the helmet to 2 would silently join at 2 as well.
+// Falls back to the old behaviour when the main product isn't in the session
+// yet (the very first write) or when no handle was configured.
 function getSessionQuantity(sessionId) {
   const cart = serverCartState || cartState;
   if (!cart?.lines?.length) return 1;
-  const sessionLine = cart.lines.find((l) => l.attributesByKey?._config_id === sessionId);
-  return sessionLine?.quantity || 1;
+  const inSession = cart.lines.filter((l) => l.attributesByKey?._config_id === sessionId);
+  const anchor =
+    (mainHandle && inSession.find((l) => l.merchandise?.product?.handle === mainHandle)) ||
+    inSession[0];
+  return anchor?.quantity || 1;
 }
 
 function fireSessionChange() {

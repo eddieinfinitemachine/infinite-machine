@@ -44,6 +44,13 @@ export const ACCESSORY_LAYERS = {
   'olto-soft-bag': `${LAYER_CDN}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`,
 };
 
+// Layers shot ON THE GROUND next to the bike rather than mounted on it. They
+// sit low on the shared canvas, and the hero's portrait composition crops the
+// bottom (object-fit: cover on a 44vh box) — which sliced the helmet in half
+// (obodom, Aug 27, "it gets a bit cut off"). The hero letterboxes instead while
+// one of these is on; see .hero.is-ground-layer in infinite.css.
+export const GROUND_LAYERS = new Set(['open-face-helmet', 'olto-super-charger', 'olto-soft-bag']);
+
 /**
  * Does Shopify actually honour the bundle price?
  *
@@ -81,19 +88,39 @@ export const PAYMENT_PLANS = {
   finance: { months: 12, apr: 0 },
 };
 
+// Shop Pay quotes installments on the ORDER total, so a monthly derived from
+// the configurator's subtotal is always low. Measured 2026-08-27 on a real
+// checkout: $4,195 subtotal → $125 shipping + $339.05 tax = $4,659.05, and Shop
+// Pay offered $388.25/mo over 12. The same cart quoted off the subtotal would
+// have read $307.92/mo — about $80/mo under what the buyer is actually offered.
+//
+// Tax is destination-dependent and we only know the country at this point, so
+// TAX_RATE_EST is the effective rate from that one observed checkout. It makes
+// the figure close rather than exact, which is why it is labelled "Est." and
+// the sub-line sends the buyer to checkout for the real number.
+// TODO(obie/joseph): replace with a defensible national figure before cutover.
+const SHIPPING_EST = 125;
+const TAX_RATE_EST = 0.0808;
+
+export function estimatedOrderTotal(subtotal, region) {
+  if (!subtotal) return subtotal;
+  const taxed = region === 'us' ? subtotal * (1 + TAX_RATE_EST) : subtotal;
+  return taxed + SHIPPING_EST;
+}
+
 // What the order bar + Payment section show for a given mode.
-export function paymentFigures(total, currency, mode) {
+export function paymentFigures(total, currency, mode, region) {
   if (mode === 'finance') {
     const { months } = PAYMENT_PLANS.finance;
-    const monthly = total / months;
+    const monthly = estimatedOrderTotal(total, region) / months;
     return {
       amount: monthly,
       suffix: '/mo',
-      label: '12 mo at 0% APR, with Shop Pay',
-      sub: `${formatMoney(
+      label: 'Est. 12 mo at 0% APR, with Shop Pay',
+      sub: `About ${formatMoney(
         monthly,
         currency
-      )}/mo with Shop Pay Installments — ${months} monthly payments at 0% APR for eligible buyers. Longer terms are available at checkout and carry interest.`,
+      )}/mo with Shop Pay Installments — ${months} monthly payments at 0% APR for eligible buyers. Includes estimated tax and shipping; your exact payment is shown at checkout. Longer terms are available there and carry interest.`,
     };
   }
   return {
@@ -602,6 +629,71 @@ export function variantForOptions(product, selections) {
   return matches.find((v) => v.availableForSale) || matches[0] || null;
 }
 
+// Accessory colour chips reuse the bike's own swatch hexes where the names
+// agree (config.wrapColorMap covers the wraps, these cover accessory finishes).
+// An unmapped colour still renders — it just falls back to the neutral chip, so
+// a new Shopify colour is a missing hex, never a missing control.
+const ACCESSORY_COLOR_HEX = {
+  Black: '#000000',
+  Silver: '#D9D9D9',
+  White: '#FFFFFF',
+};
+
+/**
+ * One product option on an accessory card.
+ *
+ * Colour reads as chips, not a dropdown ("can helmet have color chip" —
+ * obodom, Aug 27): a colour you can see beats a colour you have to read. Size
+ * stays a select, where the list is what matters.
+ *
+ * A single-valued option renders nothing at all — Full Face Helmet's only
+ * colour is Black, and a one-choice control is a control that asks a question
+ * with no answer.
+ */
+function buildAccessoryOption(p, name, values, defaults) {
+  if (values.length < 2) return '';
+  const selected = defaults.get(name) ?? values[0];
+
+  if (!/colou?rs?/i.test(name)) {
+    return `
+        <select class="acc_select" data-acc-option="${esc(name)}" aria-label="${esc(p.title)} ${esc(
+      name
+    )}">
+          ${values
+            .map(
+              (val) =>
+                `<option value="${esc(val)}"${selected === val ? ' selected' : ''}>${esc(
+                  val
+                )}</option>`
+            )
+            .join('')}
+        </select>`;
+  }
+
+  return `
+        <div
+          class="acc_swatches"
+          role="group"
+          aria-label="${esc(p.title)} ${esc(name)}"
+          data-acc-option="${esc(name)}"
+          data-acc-value="${esc(selected)}"
+        >
+          ${values
+            .map(
+              (val) => `<button
+            type="button"
+            class="swatch acc_swatch${selected === val ? ' is-selected' : ''}"
+            data-acc-swatch="${esc(val)}"
+            style="--swatch: ${esc(ACCESSORY_COLOR_HEX[val] || 'var(--chip)')}"
+            title="${esc(val)}"
+            aria-label="${esc(val)}"
+            aria-pressed="${selected === val ? 'true' : 'false'}"
+          ></button>`
+            )
+            .join('')}
+        </div>`;
+}
+
 function buildAccessoryCard(p) {
   const v = firstVariant(p);
   if (!v) return '';
@@ -634,25 +726,29 @@ function buildAccessoryCard(p) {
       ${
         options.length
           ? `<div class="acc_opts">${options
-              .map(
-                ([name, values]) => `
-        <select class="acc_select" data-acc-option="${esc(name)}" aria-label="${esc(p.title)} ${esc(
-                  name
-                )}">
-          ${values
-            .map(
-              (val) =>
-                `<option value="${esc(val)}"${defaults.get(name) === val ? ' selected' : ''}>${esc(
-                  val
-                )}</option>`
-            )
-            .join('')}
-        </select>`
-              )
+              .map(([name, values]) => buildAccessoryOption(p, name, values, defaults))
               .join('')}</div>`
           : ''
       }
-      <button type="button" class="acc_btn" data-acc-toggle="${esc(p.handle)}">Add</button>
+      <div class="acc_actions">
+        <!-- Only meaningful once the item is in the cart; .acc.is-added reveals it -->
+        <div class="acc_qty" data-acc-qty>
+          <button
+            type="button"
+            class="acc_qty-btn"
+            data-acc-qty-delta="-1"
+            aria-label="One fewer ${esc(p.title)}"
+          >&minus;</button>
+          <span class="acc_qty-value" data-acc-qty-value>1</span>
+          <button
+            type="button"
+            class="acc_qty-btn"
+            data-acc-qty-delta="1"
+            aria-label="One more ${esc(p.title)}"
+          >+</button>
+        </div>
+        <button type="button" class="acc_btn" data-acc-toggle="${esc(p.handle)}">Add</button>
+      </div>
     </div>
   `;
 }

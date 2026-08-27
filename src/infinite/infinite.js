@@ -41,6 +41,7 @@ import {
   buildSummaryRows,
   firstVariant,
   formatMoney,
+  GROUND_LAYERS,
   imgUrl,
   KITS,
   OLTO_WORDMARK_SVG,
@@ -242,11 +243,22 @@ function bindEvents() {
     if (accPlay) return openVideo(accPlay.dataset.accPlay);
     if (e.target.closest('[data-video-close]')) return closeVideo();
 
+    const accSwatch = e.target.closest('[data-acc-swatch]');
+    if (accSwatch) return pickAccessoryColor(accSwatch);
+
+    const accQty = e.target.closest('[data-acc-qty-delta]');
+    if (accQty) {
+      const card = accQty.closest('[data-acc]');
+      if (card) return changeAccessoryQty(card.dataset.acc, Number(accQty.dataset.accQtyDelta));
+      return;
+    }
+
     // The whole card is the target, not just its Add button (Eddie, Aug 26 pm:
-    // "tapping an accessory here should add it"). The size/colour selects keep
-    // their own clicks — picking a variant must not add or drop the line.
+    // "tapping an accessory here should add it"). The size/colour controls keep
+    // their own clicks — picking a variant must not add or drop the line, and
+    // nor must nudging the count.
     const accCard = e.target.closest('[data-acc]');
-    if (accCard && !e.target.closest('select, label')) {
+    if (accCard && !e.target.closest('select, label, [data-acc-swatch], [data-acc-qty]')) {
       return toggleAccessory(accCard.dataset.acc);
     }
 
@@ -329,11 +341,63 @@ function cardVariant(handle) {
   const product = products.accessories.find((p) => p.handle === handle);
   if (!product) return null;
   const card = app.querySelector(`[data-acc="${handle}"]`);
-  const selects = card ? [...card.querySelectorAll('[data-acc-option]')] : [];
-  if (!selects.length) return firstVariant(product);
+  const controls = card ? [...card.querySelectorAll('[data-acc-option]')] : [];
+  if (!controls.length) return firstVariant(product);
   const selections = {};
-  for (const s of selects) selections[s.dataset.accOption] = s.value;
+  // A select carries its choice in .value; a swatch group carries it in
+  // data-acc-value on the group. Both are tagged [data-acc-option].
+  for (const el of controls) selections[el.dataset.accOption] = el.dataset.accValue ?? el.value;
   return variantForOptions(product, selections) || firstVariant(product);
+}
+
+/**
+ * Point a card's option controls at the variant actually in the cart.
+ *
+ * The card renders with the product's default variant, so a line restored from
+ * a shared link or an existing cart could sit at S/Silver while the chips still
+ * read Black. That is not just cosmetic: cardVariant() reads these controls, so
+ * the next Size change would silently swap the buyer to a Black helmet.
+ */
+function syncAccessoryOptions(card, line) {
+  const chosen = line?.merchandise?.selectedOptions;
+  if (!chosen?.length) return;
+  for (const { name, value } of chosen) {
+    const control = card.querySelector(`[data-acc-option="${CSS.escape(name)}"]`);
+    if (!control) continue;
+    if (control.tagName === 'SELECT') {
+      if (control.value !== value) control.value = value;
+      continue;
+    }
+    if (control.dataset.accValue === value) continue;
+    control.dataset.accValue = value;
+    for (const chip of control.querySelectorAll('[data-acc-swatch]')) {
+      const on = chip.dataset.accSwatch === value;
+      chip.classList.toggle('is-selected', on);
+      chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+}
+
+// Colour chips are the swatch-group equivalent of a select's change event:
+// record the choice on the group, repaint the chips, then swap the cart line if
+// the accessory is already in it.
+function pickAccessoryColor(btn) {
+  const group = btn.closest('[data-acc-option]');
+  const card = btn.closest('[data-acc]');
+  if (!group || !card) return;
+  const value = btn.dataset.accSwatch;
+  if (group.dataset.accValue === value) return;
+  group.dataset.accValue = value;
+  for (const chip of group.querySelectorAll('[data-acc-swatch]')) {
+    const on = chip === btn;
+    chip.classList.toggle('is-selected', on);
+    chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+  }
+  const handle = card.dataset.acc;
+  const added = getState().accessoryLines.some((l) => l.merchandise.product.handle === handle);
+  if (!added) return; // before Add it just stages the choice, same as a select
+  const variant = cardVariant(handle);
+  if (variant) setLine(handle, variant.id);
 }
 
 // Shared arrow-scroll for the horizontal card rows (accessories + bundles).
@@ -394,6 +458,11 @@ function selectWrap(color) {
 // of the items in accessories and re-adds it, we should make sure the bundle
 // discount still applies").
 let lastCascade = null;
+
+// Armed by the changes that redraw the accessory row wholesale (load, bundle,
+// shared design, clear); consumed once by update(). A plain accessory tap never
+// arms it, so the tapped card keeps its place. See the sort in update().
+let pendingAccResort = true;
 
 function toggleAccessory(handle) {
   const state = getState();
@@ -493,6 +562,10 @@ async function selectBundle(handle) {
       selectBundle(next);
     } else {
       pendingBundleView = null;
+      // Armed here, not at click time: update() runs several times while the
+      // batch is in flight (optimistic highlight, each cart notify) and any of
+      // them would consume the flag against the pre-batch accessory set.
+      pendingAccResort = true;
       update(getState());
     }
   }
@@ -501,14 +574,41 @@ async function selectBundle(handle) {
 function changeQty(delta) {
   pushDataLayer('change_quantity', { olto_quantity_delta: delta });
   const state = getState();
-  const lines = [state.bikeLine, state.wrapLine, ...state.accessoryLines].filter(Boolean);
   const next = Math.min(99, Math.max(1, state.quantity + delta));
   if (next === state.quantity) return;
-  // Quantity applies to every line in the session — N sets of this config
-  // (same semantic as modules/config-quantity.js). Skip optimistic tmp lines;
-  // the server sync inherits session quantity for them.
-  const real = lines.filter((l) => !String(l.id).startsWith('tmp_'));
-  Promise.all(real.map((l) => updateLine({ lineId: l.id, quantity: next })));
+
+  // Quantity applies to the whole session — N sets of this config (same
+  // semantic as modules/config-quantity.js). The bike and wrap are one per set;
+  // an accessory carries its own per-set count, so its line is the product of
+  // the two. Skip optimistic tmp lines; the server sync inherits session
+  // quantity for them.
+  const writes = [];
+  for (const l of [state.bikeLine, state.wrapLine].filter(Boolean)) {
+    if (!String(l.id).startsWith('tmp_')) writes.push({ lineId: l.id, quantity: next });
+  }
+  for (const l of state.accessoryLines) {
+    if (String(l.id).startsWith('tmp_')) continue;
+    const each = state.accessoryQty[l.merchandise.product.handle] || 1;
+    writes.push({ lineId: l.id, quantity: next * each });
+  }
+  Promise.all(writes.map((w) => updateLine(w)));
+}
+
+// Per-accessory count, on top of the configuration quantity — "two helmets on
+// one bike" (obodom, Aug 27). The cart line holds configQty × accQty; state.js
+// divides the configuration quantity back out for display.
+function changeAccessoryQty(handle, delta) {
+  const state = getState();
+  const line = state.accessoryLines.find((l) => l.merchandise.product.handle === handle);
+  if (!line || String(line.id).startsWith('tmp_')) return;
+  const current = state.accessoryQty[handle] || 1;
+  const next = Math.min(99, Math.max(1, current + delta));
+  if (next === current) return;
+  pushDataLayer('change_accessory_quantity', {
+    olto_accessory: handle,
+    olto_accessory_quantity: next,
+  });
+  updateLine({ lineId: line.id, quantity: next * (state.quantity || 1) });
 }
 
 // ---------- Save / share ----------
@@ -573,7 +673,19 @@ function readDesignParam() {
     qty: Math.min(99, Math.max(1, parseInt(qty, 10) || 1)),
     // 'lease' still parses from old links but maps to cash — the plan is gone
     pay: ['cash', 'finance'].includes(pay) ? pay : 'cash',
-    accs: (accs || '').split('~').filter(Boolean),
+    // handle[:variantId[:count]] — links shared before Aug 27 carry the bare
+    // handle, which still resolves (to the first sellable variant, count 1).
+    accs: (accs || '')
+      .split('~')
+      .filter(Boolean)
+      .map((token) => {
+        const [handle, variantId, count] = token.split(':');
+        return {
+          handle,
+          variantId: variantId || null,
+          qty: Math.min(99, Math.max(1, parseInt(count, 10) || 1)),
+        };
+      }),
   };
 }
 
@@ -585,9 +697,15 @@ async function applyDesign(design) {
   const items = [{ variantId: gidForVariant(design.base), quantity: design.qty }];
   const wrapVariant = design.wrap ? wrapVariantsByColor.get(design.wrap) : null;
   if (wrapVariant) items.push({ variantId: wrapVariant.id, quantity: design.qty });
-  for (const handle of design.accs) {
-    const variant = firstVariant(products.accessories.find((a) => a.handle === handle));
-    if (variant) items.push({ variantId: variant.id, quantity: design.qty });
+  for (const acc of design.accs) {
+    const product = products.accessories.find((a) => a.handle === acc.handle);
+    if (!product) continue;
+    // The encoded variant only counts if the product still sells it.
+    const named = acc.variantId
+      ? product.variants.find((v) => numericId(v.id) === acc.variantId)
+      : null;
+    const variant = named || firstVariant(product);
+    if (variant) items.push({ variantId: variant.id, quantity: design.qty * acc.qty });
   }
   setPayMode(design.pay);
   try {
@@ -595,6 +713,8 @@ async function applyDesign(design) {
   } catch (err) {
     console.error('[Infinite] Failed to apply shared design:', err);
   }
+  pendingAccResort = true;
+  update(getState());
   // Drop ?d= so a reload doesn't re-seed another copy (?config= stays — the
   // cart layer keeps it in sync)
   const params = new URLSearchParams(window.location.search);
@@ -607,7 +727,17 @@ function designUrl() {
   const wrapColor = state.wrapLine
     ? wrapColorOf(state.wrapLine.merchandise) || state.wrapLine.merchandise.title
     : '';
-  const accs = state.accessoryLines.map((l) => l.merchandise.product.handle).join('~');
+  // Each accessory encodes handle:variantId:count. The variant matters —
+  // before this, a shared link rebuilt every accessory at firstVariant(), so a
+  // Silver helmet in size L came back as whatever Shopify listed first. Old
+  // links carrying a bare handle still parse; see readDesignParam.
+  const accs = state.accessoryLines
+    .map((l) => {
+      const { handle } = l.merchandise.product;
+      const each = state.accessoryQty[handle] || 1;
+      return `${handle}:${numericId(l.merchandise.id)}:${each}`;
+    })
+    .join('~');
   const code = [state.baseNumericId, wrapColor, state.quantity, state.payMode, accs].join('.');
   const url = new URL(window.location.href);
   url.searchParams.set('d', code);
@@ -632,7 +762,7 @@ function repChatMessage() {
   const total = formatMoney(state.total, state.currency);
   let price = `Total ${total}`;
   if (state.payMode === 'finance') {
-    const { amount } = paymentFigures(state.total, state.currency, 'finance');
+    const { amount } = paymentFigures(state.total, state.currency, 'finance', state.region);
     price = `${formatMoney(amount, state.currency)}/mo with Shop Pay (${total} total)`;
   }
 
@@ -679,15 +809,33 @@ async function clearConfiguration() {
   // Fresh session starts empty — re-seed the default bike (upstream's
   // main-product-cart does the same on the live site)
   setLineForProduct(products.main.handle, gidForVariant(config.defaultVariantId));
+  pendingAccResort = true;
+}
+
+/**
+ * Shop Pay cannot be told WHICH installment term to preselect — no cart or
+ * checkout parameter exists for it, and the buyer picks the term inside Shop
+ * Pay (Joseph, Aug 27: "when you click the finance option, it doesn't actually
+ * pass along to shop").
+ *
+ * What IS possible is landing them on that screen instead of the generic
+ * checkout. `payment=shop_pay` is documented for cart permalinks and works on
+ * the Storefront checkoutUrl too — verified against a real cart on 2026-08-27,
+ * which redirected to shop.app/checkout/.../shoppay?...&redirect_source=cart_permalink.
+ */
+function checkoutUrlForMode() {
+  const url = getCheckoutUrl();
+  if (!url || getState().payMode !== 'finance') return url;
+  return `${url}${url.includes('?') ? '&' : '?'}payment=shop_pay`;
 }
 
 function primaryAction() {
   const state = getState();
   if (!state.ready) return;
   if (state.region === 'row') return openLeadModal('row');
-  const url = getCheckoutUrl();
+  const url = checkoutUrlForMode();
   if (!url) return;
-  pushDataLayer('begin_checkout', { checkout_url: url });
+  pushDataLayer('begin_checkout', { checkout_url: url, olto_pay_mode: state.payMode });
   window.location.href = url;
 }
 
@@ -887,12 +1035,38 @@ function leadFormSnapshot() {
     wrap: wrapColor,
     pack: state.activeBundle || '',
     quantity: String(state.quantity || 1),
-    accessories: state.accessoryLines
-      .map((l) => l.merchandise.product.title)
-      .filter(Boolean)
-      .join(', '),
+    accessories: accessorySnapshot(state),
     design_url: designUrl(),
   };
+}
+
+/**
+ * The `accessories` field the CRM re-resolves into a real Shopify cart
+ * (infinite-machine-crm pipeline-v2/resolve-build.ts): a comma-separated list of
+ * product titles, matched first as a bare title and then as "Title — Variant"
+ * on an em-dash.
+ *
+ * Two things this fixes, both of which were losing information silently:
+ *  - The variant was never sent. A Silver helmet in size L reached sales as
+ *    "Open Face Helmet" and resolved to whichever variant Shopify listed first.
+ *    Appended now, but ONLY where the product has real options — a product with
+ *    a single "Default Title" variant must keep matching on the bare title.
+ *  - A count above one was invisible. The resolver emits one line item per
+ *    entry and the cart permalink it builds sums repeats of the same variant,
+ *    so repeating the name is the form that survives it without a CRM change.
+ *    It also reads correctly to the rep who opens the Slack card.
+ */
+function accessorySnapshot(state) {
+  const names = [];
+  for (const l of state.accessoryLines) {
+    const { title } = l.merchandise.product;
+    if (!title) continue;
+    const variant = l.merchandise.title;
+    const named = variant && variant !== 'Default Title' ? `${title} — ${variant}` : title;
+    const each = state.accessoryQty[l.merchandise.product.handle] || 1;
+    for (let i = 0; i < each; i += 1) names.push(named);
+  }
+  return names.join(', ');
 }
 
 /**
@@ -1387,6 +1561,7 @@ function update(state) {
     for (const h of rule.hide || []) layerHidden.add(h);
   }
   let anyLayerOn = false;
+  let groundLayerOn = false;
   for (const el of app.querySelectorAll('[data-layer]')) {
     const handle = el.dataset.layer;
     const on = addedHandles.has(handle) && !layerHidden.has(handle);
@@ -1394,7 +1569,11 @@ function update(state) {
     if (src && el.getAttribute('src') !== src) el.setAttribute('src', src);
     el.classList.toggle('is-on', on);
     if (on) anyLayerOn = true;
+    if (on && GROUND_LAYERS.has(handle)) groundLayerOn = true;
   }
+  // A ground-level layer (helmet, charger, soft bag) reaches below the bike,
+  // where the portrait hero's cover crop cuts it off. Letterbox while one is on.
+  app.querySelector('.hero')?.classList.toggle('is-ground-layer', groundLayerOn);
 
   // Hero base: accessory layers are aligned to the base bike canvas, so once
   // any layer is showing the base shot wins. The wrapped-vehicle photo (a
@@ -1449,16 +1628,43 @@ function update(state) {
 
   // Accessories
   const added = new Set(state.accessoryLines.map((l) => l.merchandise.product.handle));
+  const accLineByHandle = new Map(
+    state.accessoryLines.map((l) => [l.merchandise.product.handle, l])
+  );
   for (const el of app.querySelectorAll('[data-acc-toggle]')) {
-    const has = added.has(el.dataset.accToggle);
+    const handle = el.dataset.accToggle;
+    const has = added.has(handle);
     el.textContent = has ? 'Added' : 'Add';
     el.classList.toggle('is-added', has);
-    el.closest('[data-acc]')?.classList.toggle('is-added', has);
+    const card = el.closest('[data-acc]');
+    card?.classList.toggle('is-added', has);
+    const qtyEl = card?.querySelector('[data-acc-qty-value]');
+    if (qtyEl) qtyEl.textContent = String(state.accessoryQty[handle] || 1);
+    if (has && card) syncAccessoryOptions(card, accLineByHandle.get(handle));
   }
-  // Cards hold their place in the row. Added ones used to be re-sorted to the
-  // end, which yanked the card out from under the tap (Eddie, Aug 26 pm: "the
-  // accessories should[n't] leave when tapping them. they should just turn
-  // black") — the black is-added state carries the selection now.
+  // Un-added items lead the row, added ones move to the end (stable sort keeps
+  // catalog order within each group) — obodom, Aug 27, after a bundle left its
+  // own components sitting at the front of the row.
+  //
+  // But NOT after a single card tap: re-sorting there yanks the card out from
+  // under the finger, which is exactly why Eddie pulled the original sort on
+  // Aug 26 pm ("the accessories should[n't] leave when tapping them. they
+  // should just turn black"). So only the changes that already redraw the
+  // user's mental model — page load, bundle, shared design, clear — arm it.
+  if (pendingAccResort) {
+    pendingAccResort = false;
+    const accList = app.querySelector('[data-acc-list]');
+    if (accList) {
+      const cards = [...accList.querySelectorAll('[data-acc]')];
+      const sorted = [...cards].sort(
+        (a, b) => (added.has(a.dataset.acc) ? 1 : 0) - (added.has(b.dataset.acc) ? 1 : 0)
+      );
+      if (cards.some((el, i) => el !== sorted[i])) {
+        for (const el of sorted) accList.appendChild(el);
+        accList.scrollLeft = 0; // else the promoted cards land off-screen
+      }
+    }
+  }
 
   // Quantity
   setText('[data-qty-value]', String(state.quantity));
@@ -1474,7 +1680,7 @@ function update(state) {
   // that isn't 'finance' (including a legacy 'lease' from an old link)
   // renders as cash.
   const mode = state.payMode === 'finance' ? 'finance' : 'cash';
-  const fig = paymentFigures(state.total, state.currency, mode);
+  const fig = paymentFigures(state.total, state.currency, mode, state.region);
   for (const el of app.querySelectorAll('[data-pay-mode]')) {
     el.classList.toggle('is-active', el.dataset.payMode === mode);
   }
@@ -1496,7 +1702,7 @@ function update(state) {
   const cta = app.querySelector('[data-cta]');
   if (cta) {
     // Keep the real checkout URL on the anchor so im-attribution can see it.
-    const url = state.region === 'row' ? '' : getCheckoutUrl();
+    const url = state.region === 'row' ? '' : checkoutUrlForMode();
     cta.setAttribute('href', url || '#');
   }
   if (cta) cta.textContent = state.region === 'row' ? 'Register interest' : 'Order';

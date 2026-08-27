@@ -341,6 +341,17 @@
   visibility: hidden;
 }
 
+/* A ground-level layer (helmet, charger, soft bag) sits below the bike on the
+   shared canvas, and the portrait hero's cover crop cuts straight through it
+   (obodom, Aug 27). Letterbox the whole canvas while one is on — base and
+   layers switch together, so they stay pixel-registered. Wide viewports are
+   already contain via the min-aspect-ratio rule below; this is the portrait
+   case that rule deliberately excludes. */
+.hero.is-ground-layer .hero_img,
+.hero.is-ground-layer .hero_layer {
+  object-fit: contain;
+}
+
 .hero_layer.is-on {
   visibility: visible;
 }
@@ -783,10 +794,35 @@
   color: var(--ink-2);
 }
 
-/* Product-option selects on a card (helmet size/color — team review, Aug 26) */
+/* Product options on a card (helmet size/color — team review, Aug 26).
+   Colour is chips, size is a select — see buildAccessoryOption in ui.js. */
 .acc_opts {
   display: flex;
+  align-items: center;
   gap: 6px;
+}
+
+.acc_swatches {
+  display: flex;
+  gap: 6px;
+}
+
+/* The bike's .swatch at card scale — same shape and selected treatment, so a
+   colour means the same thing wherever it appears on the page. */
+.acc_swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex: none;
+}
+
+.acc_swatch.is-selected {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--ink);
+}
+
+.acc_swatch:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
 }
 
 .acc_select {
@@ -813,8 +849,55 @@
   }
 }
 
+/* Add button, plus the per-accessory count once it is in the cart. The stepper
+   is hidden until then — a count is meaningless on something you haven't
+   added, and the row has to stay one tap deep. */
+.acc_actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acc_qty {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.acc.is-added .acc_qty {
+  display: flex;
+}
+
+.acc_qty-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-2);
+  transition: color 0.15s ease-out, background 0.15s ease-out;
+}
+
+.acc_qty-btn:active {
+  background: var(--chip);
+  color: var(--ink);
+}
+
+.acc_qty-value {
+  min-width: 16px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
 .acc_btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 8px 0;
   border-radius: 999px;
   border: 1px solid var(--ink);
@@ -925,27 +1008,31 @@
 
 /* Clear configuration + Talk to a rep, the two quiet actions that close the
    sheet and the rail (the rep link used to live in the removed pop-up) */
+/* One row, clear left / rep right, both at .summary_note's size — the stacked
+   version left a lot of air under the summary (obodom, Aug 27). */
 .config-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
 }
 
 .config-rep {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--ink-2);
   text-decoration: underline;
   text-underline-offset: 3px;
+  white-space: nowrap;
 }
 
 .config-clear {
-  display: block;
-  margin: 22px auto 0;
-  padding: 10px 22px;
+  padding: 8px 16px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12px;
+  white-space: nowrap;
   font-weight: 500;
   color: var(--ink-2);
   transition: color 0.15s ease-out, border-color 0.15s ease-out;
