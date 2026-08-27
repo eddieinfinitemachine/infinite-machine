@@ -41,7 +41,6 @@ import {
   buildSummaryRows,
   firstVariant,
   formatMoney,
-  GROUND_LAYERS,
   imgUrl,
   KITS,
   MULTI_UNIT_ACCESSORIES,
@@ -1681,7 +1680,6 @@ function update(state) {
     for (const h of rule.hide || []) layerHidden.add(h);
   }
   let anyLayerOn = false;
-  let groundLayerOn = false;
   for (const el of app.querySelectorAll('[data-layer]')) {
     const handle = el.dataset.layer;
     const on = addedHandles.has(handle) && !layerHidden.has(handle);
@@ -1689,11 +1687,7 @@ function update(state) {
     if (src && el.getAttribute('src') !== src) el.setAttribute('src', src);
     el.classList.toggle('is-on', on);
     if (on) anyLayerOn = true;
-    if (on && GROUND_LAYERS.has(handle)) groundLayerOn = true;
   }
-  // A ground-level layer (helmet, charger, soft bag) reaches below the bike,
-  // where the portrait hero's cover crop cuts it off. Letterbox while one is on.
-  app.querySelector('.hero')?.classList.toggle('is-ground-layer', groundLayerOn);
 
   // Hero base: accessory layers are aligned to the base bike canvas, so once
   // any layer is showing the base shot wins. The wrapped-vehicle photo (a

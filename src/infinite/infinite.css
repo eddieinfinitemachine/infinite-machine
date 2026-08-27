@@ -341,16 +341,15 @@
   visibility: hidden;
 }
 
-/* A ground-level layer (helmet, charger, soft bag) sits below the bike on the
-   shared canvas, and the portrait hero's cover crop cuts straight through it
-   (obodom, Aug 27). Letterbox the whole canvas while one is on — base and
-   layers switch together, so they stay pixel-registered. Wide viewports are
-   already contain via the min-aspect-ratio rule below; this is the portrait
-   case that rule deliberately excludes. */
-.hero.is-ground-layer .hero_img,
-.hero.is-ground-layer .hero_layer {
-  object-fit: contain;
-}
+/* The hero NEVER changes object-fit in response to what is on the bike.
+   An earlier attempt letterboxed the canvas while a ground-level layer was on,
+   which rescaled the whole vehicle the instant a helmet was added — "it feels
+   cheap that way" (obodom, Aug 27), and a slight crop is the better trade.
+   Measured on the real assets: base bike occupies 0.217-0.830 of the square
+   canvas, helmet 0.730-0.930, soft bag 0.785-0.948, super charger 0.450-0.618
+   (i.e. entirely inside the bike's own span — it was never at risk). What
+   actually tucks the helmet away on a phone is the sheet, which overlaps the
+   hero's bottom 22px by design; object-fit was never the lever for that. */
 
 .hero_layer.is-on {
   visibility: visible;

@@ -44,13 +44,6 @@ export const ACCESSORY_LAYERS = {
   'olto-soft-bag': `${LAYER_CDN}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`,
 };
 
-// Layers shot ON THE GROUND next to the bike rather than mounted on it. They
-// sit low on the shared canvas, and the hero's portrait composition crops the
-// bottom (object-fit: cover on a 44vh box) — which sliced the helmet in half
-// (obodom, Aug 27, "it gets a bit cut off"). The hero letterboxes instead while
-// one of these is on; see .hero.is-ground-layer in infinite.css.
-export const GROUND_LAYERS = new Set(['open-face-helmet', 'olto-super-charger', 'olto-soft-bag']);
-
 /**
  * Does Shopify actually honour the bundle price?
  *
