@@ -10,7 +10,7 @@
 # Deploy — the ONE step that needs a human (browser OAuth to Partners/the store):
 #
 #   node bin/print-bundle-discounts.mjs                        # amounts still right?
-#   node --test shopify/olto-bundle-discount/test/*.test.mjs   # 8 tests
+#   node --test shopify/extensions/olto-bundle-discount/test/*.test.mjs   # 8 tests
 #   cd shopify && shopify app deploy                           # <-- your login
 #   shopify app function info                                  # copy the function id
 #

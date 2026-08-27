@@ -32,7 +32,7 @@ const kits = [...kitsBlock.matchAll(/label:\s*'([^']+)'[\s\S]*?price:\s*(\d+)[\s
 );
 
 // And the amounts the deployed Function will actually take off.
-const fn = readFileSync('shopify/olto-bundle-discount/src/cart_lines_discounts_generate_run.js', 'utf8');
+const fn = readFileSync('shopify/extensions/olto-bundle-discount/src/cart_lines_discounts_generate_run.js', 'utf8');
 const fnAmounts = Object.fromEntries(
   [...fn.matchAll(/title:\s*"Olto (\w+) bundle",\s*products:[^,]+,\s*amount:\s*"([\d.]+)"/g)].map((m) => [
     m[1].toLowerCase(),
@@ -89,7 +89,7 @@ for (const kit of kits) {
 if (drift) {
   console.error(
     `\n${drift} tier(s) out of sync. Update TIERS in ` +
-      'shopify/olto-bundle-discount/src/cart_lines_discounts_generate_run.js, re-run its tests, ' +
+      'shopify/extensions/olto-bundle-discount/src/cart_lines_discounts_generate_run.js, re-run its tests, ' +
       'then `shopify app deploy`.\n'
   );
   process.exit(1);

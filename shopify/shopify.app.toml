@@ -1,0 +1,23 @@
+# App shell for the Olto bundle discount Function.
+#
+# A Function extension must belong to an app, so this exists purely to host
+# extensions/olto-bundle-discount. There is no server, no UI and no OAuth
+# surface — `embedded = false` and the placeholder application_url are
+# deliberate; Shopify never calls back into anything.
+#
+# First deploy (interactive — this is the browser OAuth step):
+#   cd shopify && shopify app deploy
+# The CLI will ask you to log in, pick the Partners org, and create/select the
+# app. It writes client_id back into this file; commit that.
+#
+# Nothing else needs a human: the Admin token already has write_discounts, so
+# the discount node and all verification run from bin/.
+name = "olto-bundles"
+application_url = "https://www.infinitemachine.com"
+embedded = false
+
+[access_scopes]
+scopes = "write_discounts"
+
+[build]
+automatically_update_urls_on_dev = false

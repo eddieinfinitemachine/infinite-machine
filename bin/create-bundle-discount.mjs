@@ -4,7 +4,7 @@
  *
  * Order of operations:
  *   1. node bin/print-bundle-discounts.mjs            # amounts still correct?
- *   2. node --test shopify/olto-bundle-discount/test/*.test.mjs
+ *   2. node --test shopify/extensions/olto-bundle-discount/test/*.test.mjs
  *   3. cd shopify && shopify app deploy               # HUMAN: needs the CLI login
  *   4. shopify app function info                      # grab the function id
  *   5. SHOPIFY_STORE=… SHOPIFY_ADMIN_TOKEN=… \
