@@ -1000,6 +1000,11 @@
   font-weight: 500;
 }
 
+.summary_x {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
 .summary_note {
   margin-top: 10px;
   font-size: 12px;

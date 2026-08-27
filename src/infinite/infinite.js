@@ -753,9 +753,11 @@ function repChatMessage() {
     : '';
   const base = config.variants[state.baseNumericId]?.color || 'Silver';
   const bits = [wrap ? `${wrap} wrap` : `${base} finish`];
-  const accessories = state.accessoryLines.map((l) =>
-    productTitle(l.merchandise.product.handle, l.merchandise.product.title)
-  );
+  const accessories = state.accessoryLines.map((l) => {
+    const each = state.accessoryQty[l.merchandise.product.handle] || 1;
+    const title = productTitle(l.merchandise.product.handle, l.merchandise.product.title);
+    return each > 1 ? `${title} ×${each}` : title;
+  });
   if (accessories.length) bits.push(accessories.join(', '));
   if (state.quantity > 1) bits.push(`qty ${state.quantity}`);
 

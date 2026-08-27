@@ -774,9 +774,15 @@ export function buildSummaryRows(state, config) {
     });
   }
   for (const l of state.accessoryLines) {
+    // Show the per-configuration count and the line's own total, so two helmets
+    // read "Open Face Helmet ×2 … $596" rather than a $298 that doesn't add up
+    // against the total below it.
+    const { handle } = l.merchandise.product;
+    const each = state.accessoryQty?.[handle] || 1;
+    const title = esc(productTitle(handle, l.merchandise.product.title));
     rows.push({
-      label: esc(productTitle(l.merchandise.product.handle, l.merchandise.product.title)),
-      amount: parseFloat(l.merchandise.price.amount),
+      label: each > 1 ? `${title} <span class="summary_x">&times;${each}</span>` : title,
+      amount: parseFloat(l.merchandise.price.amount) * each,
     });
   }
   if (state.bundleSavings > 0) {
