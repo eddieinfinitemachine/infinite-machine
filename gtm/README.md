@@ -68,6 +68,14 @@ scrape the page for it: `configurator` (always `olto`), `olto_variant`,
 `olto_wrap`, `olto_pack`, `olto_quantity`, `olto_accessory_count`, `olto_value`,
 `olto_savings`, `olto_currency`, `olto_region`, `olto_config_id`.
 
+**These context params are the state at the moment of the click, before the
+interaction is applied.** The cart is the source of truth and its write is
+async, so pushing afterwards would delay the event and lose it entirely if the
+visitor navigates. Read the interaction from its own named param
+(`olto_selected_color`, `olto_selected_bundle`, `olto_accessory`, …) and the
+context params as "what they were looking at when they pressed it". Only
+`begin_checkout` and the form events describe a settled configuration.
+
 ### Conversion surface — bind goals here
 
 | Event | Fires when | Extra params |
