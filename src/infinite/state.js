@@ -112,20 +112,24 @@ function recompute(cart) {
     if (l.merchandise.price.currencyCode) state.currency = l.merchandise.price.currencyCode;
   }
 
-  // Active bundle = session accessory set exactly matches a bundle's product
-  // set (same rule as lib/selection.js). Because the test is on the SET, an
-  // accessory that is removed and re-added lands back in the bundle and the
+  // Active bundle = the session CONTAINS every product in a bundle. A superset
+  // counts: adding a helmet on top of the Commuter kit used to drop the match,
+  // which silently pulled the discount code off the cart and charged full price
+  // for the kit ("make sure the bundle discount is still applied if someone ADDS
+  // something to the cart but also has the bundle" — obodom, Aug 27). Punishing
+  // an upsell was exactly backwards.
+  //
+  // Largest kit first, so a cart holding all of Max is credited as Max rather
+  // than as the Commuter subset it also contains. Because the test is on the
+  // SET, an accessory removed and re-added lands back in the bundle and the
   // discount comes back with it (obodom, Aug 26).
   const selected = new Set(state.accessoryLines.map((l) => l.merchandise.product.handle));
   state.activeBundle = null;
   let activeKit = null;
-  for (const b of bundles) {
+  const bySize = [...bundles].sort((a, b) => (b.products?.length || 0) - (a.products?.length || 0));
+  for (const b of bySize) {
     const members = (b.products || []).map((p) => p.handle);
-    if (
-      members.length &&
-      members.length === selected.size &&
-      members.every((h) => selected.has(h))
-    ) {
+    if (members.length && members.every((h) => selected.has(h))) {
       state.activeBundle = b.handle;
       activeKit = b;
       break;

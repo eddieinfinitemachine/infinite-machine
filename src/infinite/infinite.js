@@ -564,9 +564,15 @@ async function selectBundle(handle) {
     // snapshot would otherwise wipe this batch's lines
     await lastLineWrite;
 
-    // Selecting a pack replaces the currently-staged accessories
+    // Selecting a pack replaces the previous pack's contents — but keeps
+    // anything that belongs to no pack at all. A helmet the buyer added on
+    // purpose should survive them changing their mind about the kit, the same
+    // way adding a helmet no longer drops the kit (state.js does the matching
+    // as a superset for exactly this reason).
+    const kitMembers = new Set(KITS.flatMap((k) => k.items));
     const lineIds = getState()
-      .accessoryLines.map((l) => l.id)
+      .accessoryLines.filter((l) => kitMembers.has(l.merchandise.product.handle))
+      .map((l) => l.id)
       .filter((id) => !String(id).startsWith('tmp_'));
     if (lineIds.length) await removeLines(lineIds);
 
