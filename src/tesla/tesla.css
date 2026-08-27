@@ -48,7 +48,21 @@
     format('woff');
 }
 
-:root {
+/* ---------------------------------------------------------------------------
+   Scoping.
+
+   This stylesheet is injected into the live Webflow page, which carries the
+   whole site stylesheet, Webflow's normalize, IX2 and several third-party
+   widgets. Anything global here would reshape the entire site — and Webflow's
+   own `body`/`button`/`img` rules would deform this UI in return.
+
+   Every rule below is therefore scoped to `.olto-cfg`, the class mount() puts
+   on the root element in BOTH hosts (the Webflow page's [data-tesla-app] and
+   the standalone demo's #app). The custom properties live on the same element
+   rather than :root: every region here is a DOM descendant of the mount, so
+   they inherit normally even where position:fixed takes them out of flow.
+   --------------------------------------------------------------------------- */
+.olto-cfg {
   --ink: #252525; /* oklch(0.145 0 0) */
   --ink-2: #6a6a6a;
   --ink-3: #9a9a9a;
@@ -65,36 +79,77 @@
   --ease-im: cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
-* {
+.olto-cfg,
+.olto-cfg *,
+.olto-cfg *::before,
+.olto-cfg *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
+/* Was `body` + `#app`. Both collapse onto the mount itself. */
+.olto-cfg {
   font-family: var(--font-text);
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
-}
-
-#app {
+  -webkit-text-size-adjust: 100%;
   max-width: 640px;
   margin: 0 auto;
   min-height: 100vh;
   min-height: 100dvh;
 }
 
-button {
+.olto-cfg button {
   font-family: inherit;
   border: 0;
   background: none;
   cursor: pointer;
   color: inherit;
+}
+
+/* The adopted Webflow form arrives wearing Webflow's own form classes. Neutralise
+   them so it inherits this UI rather than the site's. */
+.olto-cfg .w-form {
+  margin: 0;
+}
+
+.olto-cfg .w-input,
+.olto-cfg .w-select,
+.olto-cfg input[type='text'],
+.olto-cfg input[type='email'],
+.olto-cfg input[type='tel'] {
+  width: 100%;
+  height: auto;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 13px 14px;
+  margin-bottom: 10px;
+}
+
+.olto-cfg input[type='submit'] {
+  width: 100%;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--bg);
+  background: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  padding: 15px 20px;
+  cursor: pointer;
+}
+
+.olto-cfg .w-form-done,
+.olto-cfg .w-form-fail {
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--chip);
+  font-size: 0.9rem;
 }
 
 /* ---------- Boot / error ---------- */
@@ -927,19 +982,19 @@ button {
   text-decoration: none;
 }
 
-.modal {
+.leadmodal {
   position: fixed;
   inset: 0;
   z-index: 50;
 }
 
-.modal_backdrop {
+.leadmodal_backdrop {
   position: absolute;
   inset: 0;
   background: rgba(23, 24, 26, 0.4);
 }
 
-.modal_sheet {
+.leadmodal_sheet {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -952,20 +1007,20 @@ button {
   text-align: center;
 }
 
-.modal_title {
+.leadmodal_title {
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 500;
 }
 
-.modal_body {
+.leadmodal_body {
   margin-top: 10px;
   font-size: 14px;
   line-height: 1.5;
   color: var(--ink-2);
 }
 
-.modal_cta {
+.leadmodal_cta {
   display: block;
   margin-top: 20px;
   padding: 14px;
@@ -977,7 +1032,7 @@ button {
   text-decoration: none;
 }
 
-.modal_close {
+.leadmodal_close {
   margin-top: 12px;
   padding: 10px;
   width: 100%;
@@ -987,8 +1042,8 @@ button {
 
 /* ---------- Save-design lead form ---------- */
 
-/* .modal_cta is sized by display:block on <a>; buttons need the width spelled out */
-button.modal_cta {
+/* .leadmodal_cta is sized by display:block on <a>; buttons need the width spelled out */
+.olto-cfg button.leadmodal_cta {
   width: 100%;
 }
 
@@ -1005,7 +1060,7 @@ button.modal_cta {
   text-align: left; /* the sheet centers text — inputs read left-aligned */
 }
 
-form[data-save-form] .saveform_field:first-of-type {
+.olto-cfg form[data-save-form] .saveform_field:first-of-type {
   margin-top: 20px;
 }
 
@@ -1081,7 +1136,7 @@ form[data-save-form] .saveform_field:first-of-type {
     --sheet-w: 460px;
   }
 
-  #app {
+  .olto-cfg {
     max-width: none;
   }
 
@@ -1261,7 +1316,7 @@ form[data-save-form] .saveform_field:first-of-type {
   }
 
   /* Modals read as centered dialogs, not bottom sheets */
-  .modal_sheet {
+  .leadmodal_sheet {
     bottom: auto;
     top: 50%;
     transform: translate(-50%, -50%);

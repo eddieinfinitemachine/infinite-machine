@@ -28,3 +28,4 @@ typings/
 .DS_Store
 **/.DS_Store
 .vercel
+dist/webflow-harness.html

@@ -331,7 +331,12 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       </div>
       <div class="orderbar_actions">
         <button type="button" class="orderbar_save" data-save>Save</button>
-        <button type="button" class="orderbar_cta" data-cta>Order</button>
+        <!-- An anchor, not a button, and carrying sf-checkout: im-attribution's
+             capture-phase click backstop keys on [sf-checkout] and on anchors to
+             the checkout host, and it is what re-stamps a cart that was built
+             between two MutationObserver batches. A JS-only navigation is
+             invisible to it. href is kept current by update(). -->
+        <a class="orderbar_cta" data-cta sf-checkout="1" href="#" role="button">Order</a>
       </div>
     </footer>
 
@@ -354,42 +359,40 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       </div>
     </aside>
 
-    <div class="modal" data-interest hidden>
-      <div class="modal_backdrop" data-interest-close></div>
-      <div class="modal_sheet">
-        <h3 class="modal_title">Not in your region yet</h3>
-        <p class="modal_body">
-          Olto is currently available in the United States and Canada. Register your
-          interest and we&rsquo;ll let you know when Olto reaches you.
+    <div class="leadmodal" data-save-modal hidden>
+      <div class="leadmodal_backdrop" data-save-close></div>
+      <div class="leadmodal_sheet">
+        <h3 class="leadmodal_title" data-save-title>Save your design</h3>
+        <p class="leadmodal_body" data-save-copy>
+          We&rsquo;ll copy a link that rebuilds this exact Olto &mdash; share it or pick
+          up where you left off on any device.
         </p>
-        <a class="modal_cta" href="https://www.infinitemachine.com" target="_blank" rel="noopener">
-          Visit infinitemachine.com
-        </a>
-        <button type="button" class="modal_close" data-interest-close>Close</button>
-      </div>
-    </div>
 
-    <div class="modal" data-save-modal hidden>
-      <div class="modal_backdrop" data-save-close></div>
-      <div class="modal_sheet">
+        <!-- The live Webflow form (#wf-form-Olto-Interest-Form, 203 submissions)
+             is MOVED into this slot by src/olto-tesla.js. Moving rather than
+             cloning keeps Webflow's bound AJAX handler, and the im_* hidden
+             inputs travel with the node. Never re-render its children:
+             im-attribution's data-im-stamped latch would not re-stamp it. -->
+        <div data-wf-form-slot hidden></div>
+
+        <!-- Fallback for the standalone Vercel demo, where no Webflow form
+             exists. olto-tesla.js hides this once the real form is adopted. -->
         <form data-save-form novalidate>
-          <h3 class="modal_title">Save your design</h3>
-          <p class="modal_body">
-            We&rsquo;ll copy a link that rebuilds this exact Olto &mdash; share it or pick
-            up where you left off on any device.
-          </p>
           <input class="saveform_field" type="text" name="name" placeholder="Name" autocomplete="name" />
           <input class="saveform_field" type="email" name="email" placeholder="Email" autocomplete="email" inputmode="email" />
           <input class="saveform_field" type="tel" name="phone" placeholder="Phone" autocomplete="tel" inputmode="tel" />
           <p class="saveform_error" data-save-error hidden></p>
-          <button type="submit" class="modal_cta">Save my design</button>
-          <button type="button" class="modal_close" data-save-close>Close</button>
+          <button type="submit" class="leadmodal_cta">Save my design</button>
         </form>
+        <!-- Outside the fallback form on purpose: that form is removed once the
+             Webflow form is adopted, and the close affordance must survive. -->
+        <button type="button" class="leadmodal_close" data-save-close>Close</button>
+
         <div data-save-done hidden>
-          <h3 class="modal_title">Design saved</h3>
-          <p class="modal_body" data-save-done-msg>Link copied to your clipboard.</p>
+          <h3 class="leadmodal_title">Design saved</h3>
+          <p class="leadmodal_body" data-save-done-msg>Link copied to your clipboard.</p>
           <p class="savedone_link" data-save-link></p>
-          <button type="button" class="modal_cta" data-save-close>Done</button>
+          <button type="button" class="leadmodal_cta" data-save-close>Done</button>
         </div>
       </div>
     </div>

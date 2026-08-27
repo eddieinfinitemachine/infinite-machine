@@ -2,9 +2,10 @@
 // Standalone shell (dist/tesla/) — reuses the SDK's data + cart layer, builds
 // its own DOM. GSAP comes from the page (CDN) like Webflow provides it in prod.
 
-import './tesla.css';
-
-import config from '../configs/olto.js';
+// Imported as text (esbuild `loader: {'.css':'text'}`) and injected by mount().
+// One artifact, one version pin — the Webflow page can't drift a separate
+// stylesheet tag out of sync with the bundle.
+import baseConfig from '../configs/olto.js';
 import {
   addLines,
   getCheckoutUrl,
@@ -18,6 +19,7 @@ import {
   updateLine,
 } from '../lib/cart.js';
 import { client } from '../lib/client.js';
+import { countries } from '../lib/countries.js';
 import { fetchProducts } from '../lib/products.js';
 import {
   getState,
@@ -28,6 +30,7 @@ import {
   setRegion,
   subscribe,
 } from './state.js';
+import teslaCss from './tesla.css';
 import {
   ACCESSORY_LAYERS,
   buildPage,
@@ -42,7 +45,13 @@ import {
 const gsap = window.gsap || null;
 if (gsap && window.ScrollTrigger) gsap.registerPlugin(window.ScrollTrigger);
 
-const app = document.querySelector('#app');
+// Shallow clone: boot() writes defaultVariantId, and configs/olto.js is shared
+// with the parts-kit engine (src/configurator.js) and /configure-p1.
+const config = { ...baseConfig };
+
+// Assigned by mount(). Every query and listener in this file is scoped to it,
+// which is what lets the same UI run standalone or inside the Webflow page.
+let app = null;
 
 let products = null;
 let wrapVariantsByColor = new Map();
@@ -54,12 +63,36 @@ let heroShownKey = null;
 // art registers natively on all of them — NO transform needed. Sand is the
 // one exception: a side-view shot that can never register with the layers.
 const NON_COMPOSITE_WRAPS = new Set(['Sand']);
+// The country NAME, not the code. crm-backend matches it literally
+// (resolve-build.ts: `isUS = country === "united states"`), and
+// webflow_submissions.country is the only record of the US/international
+// split that the call sheet has. Names come from lib/countries.js so they
+// match exactly what the parts-kit configurator has always submitted.
+// Shipping now (GTM-433). Was per-variant dates overridden on the live page
+// by a patch script; the new UI states it directly.
+const DELIVERY_COPY = 'Ships now';
+const DELIVERY_COPY_SHORT = 'Now'; // the rail already carries its own label
+let countryName = '';
+let variantParamShown = null;
 let totalShown = 0;
 let totalTween = null;
 
-boot();
-
-async function boot() {
+/**
+ * Render the configurator into `root`.
+ *
+ * Hosts call this — src/tesla/standalone.js for the Vercel demo, and
+ * src/olto-tesla.js for the Webflow page. Nothing runs at import time.
+ */
+export async function mount(root) {
+  app = root;
+  if (!app) {
+    console.error('[Olto] mount(): no root element — nothing rendered.');
+    return;
+  }
+  // Every rule in tesla.css is scoped to this class so the stylesheet cannot
+  // reshape the Webflow page it is injected into (or be reshaped by it).
+  app.classList.add('olto-cfg');
+  injectStyles();
   // One base color (Aug 26 meeting): Silver anodized is the only finish —
   // Black sells as a vinyl wrap now — so Silver becomes the default variant
   // (the upstream config still defaults to Black for the live site).
@@ -110,6 +143,7 @@ async function boot() {
 
   detectRegion();
   initReveals();
+  pushDataLayer('view_configurator');
 
   // Preload wrap vehicle shots so the wrap-color crossfade never flashes
   for (const v of wrapVariantsByColor.values()) {
@@ -146,6 +180,14 @@ function buildWrapVariantMap(wrap) {
     if (color) map.set(color, v);
   }
   return map;
+}
+
+function injectStyles() {
+  if (document.getElementById('olto-tesla-css')) return;
+  const style = document.createElement('style');
+  style.id = 'olto-tesla-css';
+  style.textContent = teslaCss;
+  document.head.appendChild(style);
 }
 
 function renderBootError() {
@@ -185,19 +227,32 @@ function bindEvents() {
       // Every save goes through the form (Eddie, Aug 26) — a returning
       // visitor gets it prefilled from their stored lead
       if (e.target.closest('[data-nudge]')) hideNudge();
-      return toggleSaveModal(true);
+      return openLeadModal('save');
     }
     if (e.target.closest('[data-save-close]')) return toggleSaveModal(false);
     if (e.target.closest('[data-nudge-close]')) return hideNudge();
     if (e.target.closest('[data-config-reset]')) return clearConfiguration();
-    if (e.target.closest('[data-cta]')) return primaryAction();
-    if (e.target.closest('[data-interest-close]')) return toggleInterest(false);
+    if (e.target.closest('[data-cta]')) {
+      // The CTA is an <a sf-checkout href={checkoutUrl}> so im-attribution's
+      // capture-phase backstop sees it — that listener has already run by the
+      // time we get here. Navigation itself stays on the tested JS path.
+      e.preventDefault();
+      return primaryAction();
+    }
   });
 
   app.addEventListener('submit', (e) => {
     if (e.target.closest('[data-save-form]')) {
       e.preventDefault();
       submitSaveForm(e.target);
+      return;
+    }
+    // The adopted Webflow form. NEVER preventDefault here — Webflow's own AJAX
+    // handler owns this submit, and that is what puts the lead in Webflow Forms
+    // and fires the form_submission webhook into crm-backend.
+    if (e.target.closest('[data-wf-form-slot]')) {
+      fillLeadFormSnapshot(); // re-stamp in case the cart settled while open
+      pushDataLayer('form_submit', { form_name: 'Olto Interest Form' });
     }
   });
 }
@@ -242,6 +297,7 @@ function setLine(handle, variantId) {
 }
 
 function selectWrap(color) {
+  pushDataLayer('select_color', { olto_selected_color: color || 'Silver' });
   const wrapHandle = config.wrap.productHandle;
   if (!color) return setLine(wrapHandle, null);
   const variant = wrapVariantsByColor.get(color);
@@ -251,6 +307,7 @@ function selectWrap(color) {
 function toggleAccessory(handle) {
   const state = getState();
   const has = state.accessoryLines.some((l) => l.merchandise.product.handle === handle);
+  pushDataLayer(has ? 'remove_accessory' : 'add_accessory', { olto_accessory: handle });
   const deps = config.accessoryDependencies || {};
 
   if (has) {
@@ -291,6 +348,7 @@ let bundleBusy = false;
 let bundleQueued = null;
 let pendingBundleView = null; // { value: handle|null } while a selection is in flight
 async function selectBundle(handle) {
+  pushDataLayer('select_bundle', { olto_selected_bundle: handle || 'none' });
   if (bundleBusy) {
     if (handle !== pendingBundleView?.value) {
       bundleQueued = handle;
@@ -343,6 +401,7 @@ async function selectBundle(handle) {
 }
 
 function changeQty(delta) {
+  pushDataLayer('change_quantity', { olto_quantity_delta: delta });
   const state = getState();
   const lines = [state.bikeLine, state.wrapLine, ...state.accessoryLines].filter(Boolean);
   const next = Math.min(99, Math.max(1, state.quantity + delta));
@@ -444,9 +503,11 @@ async function clearConfiguration() {
 function primaryAction() {
   const state = getState();
   if (!state.ready) return;
-  if (state.region === 'row') return toggleInterest(true);
+  if (state.region === 'row') return openLeadModal('row');
   const url = getCheckoutUrl();
-  if (url) window.location.href = url;
+  if (!url) return;
+  pushDataLayer('begin_checkout', { checkout_url: url });
+  window.location.href = url;
 }
 
 // Scroll nudge: first time the Payment section comes into view (deep-scroll,
@@ -478,9 +539,110 @@ function hideNudge() {
   }, 450);
 }
 
-function toggleInterest(open) {
-  const modal = app.querySelector('[data-interest]');
-  if (modal) modal.hidden = !open;
+/**
+ * Open the single lead modal.
+ *
+ * Mirrors modules/primary-action.js:121-134 — rest-of-world sees "Register
+ * your interest", the US sees "Save your design", and BOTH submit the one
+ * Webflow form. Only the copy differs.
+ */
+function openLeadModal(mode) {
+  const modal = app.querySelector('[data-save-modal]');
+  if (!modal) return;
+  const row = mode === 'row';
+  const title = modal.querySelector('[data-save-title]');
+  const copy = modal.querySelector('[data-save-copy]');
+  if (title) title.textContent = row ? 'Register your interest' : 'Save your design';
+  if (copy) {
+    copy.textContent = row
+      ? 'Olto ships in the United States and Canada today. Leave your details and we\u2019ll tell you the moment it reaches you.'
+      : 'We\u2019ll save this exact Olto so you can pick up where you left off on any device.';
+  }
+  fillLeadFormSnapshot();
+  pushDataLayer(row ? 'interest_form_open' : 'save_configuration_open');
+  toggleSaveModal(true);
+}
+
+// ---------- Webflow lead-form contract ----------
+//
+// These six hidden inputs are what the parts-kit configurator has always
+// submitted (modules/primary-action.js:155-175, which scraped .sf-active out
+// of the DOM). crm-backend and the CRM read them as literal strings, so the
+// VALUE FORMATS below are a contract, not a preference:
+//   location    country NAME  ("United States") — resolve-build.ts compares it
+//                             exactly, lowercased; the call sheet's only
+//                             US/international signal
+//   accessories comma-joined Shopify product TITLES — re-resolved against
+//                             product titles by resolve-build.ts:88-98
+// `product` is a static hidden input authored in Webflow; we never touch it.
+//
+// design_url is new: it lets sales rebuild any submitted configuration exactly.
+function leadFormSnapshot() {
+  const state = getState();
+  const wrapColor = state.wrapLine
+    ? wrapColorOf(state.wrapLine.merchandise) || state.wrapLine.merchandise.title
+    : '';
+  return {
+    location: countryName,
+    variant: config.variants?.[state.baseNumericId]?.color || '',
+    wrap: wrapColor,
+    pack: state.activeBundle || '',
+    quantity: String(state.quantity || 1),
+    accessories: state.accessoryLines
+      .map((l) => l.merchandise.product.title)
+      .filter(Boolean)
+      .join(', '),
+    design_url: designUrl(),
+  };
+}
+
+/**
+ * Write the snapshot into the adopted Webflow form's hidden inputs.
+ *
+ * Only ever SETS `.value` on inputs that already exist — it must never add,
+ * remove or re-render children of that form, because im-attribution stamps its
+ * 16 im_* hidden inputs as the form's last children and latches
+ * `data-im-stamped` so it will not re-stamp.
+ */
+function fillLeadFormSnapshot() {
+  const form = app.querySelector('[data-wf-form-slot] form');
+  if (!form) return; // standalone demo — no Webflow form adopted
+  const snap = leadFormSnapshot();
+  for (const [name, value] of Object.entries(snap)) {
+    const input = form.querySelector(`input[name="${name}"]`);
+    if (input) input.value = value;
+  }
+}
+
+// ---------- dataLayer ----------
+//
+// GA4 on this site has no tags of its own: all 28 events fire from GTM
+// triggers historically bound to DOM selectors and Webflow CSS classes, which
+// a rebuilt DOM silently breaks. These explicit pushes are the replacement
+// contract — GTM triggers should key on `event` here, never on markup again.
+function pushDataLayer(event, extra) {
+  try {
+    const state = getState();
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event,
+      configurator: 'olto',
+      olto_variant: config.variants?.[state.baseNumericId]?.color || '',
+      olto_wrap: state.wrapLine
+        ? wrapColorOf(state.wrapLine.merchandise) || state.wrapLine.merchandise.title
+        : '',
+      olto_pack: state.activeBundle || '',
+      olto_quantity: state.quantity || 1,
+      olto_accessory_count: state.accessoryLines.length,
+      olto_value: Number(state.total || 0),
+      olto_currency: state.currency || 'USD',
+      olto_region: state.region || 'unresolved',
+      olto_config_id: getCurrentConfigSessionId() || '',
+      ...(extra || {}),
+    });
+  } catch (err) {
+    console.warn('[Olto] dataLayer push failed:', err); // never block the UI
+  }
 }
 
 // ---------- Save-design lead capture ----------
@@ -579,8 +741,14 @@ async function detectRegion() {
   try {
     const res = await fetch('https://get.geojs.io/v1/ip/country', { signal: controller.signal });
     const code = (await res.text()).trim().toUpperCase();
+    // Keep the NAME, not just the code — it is the `location` field the CRM
+    // splits US from international on. The parts-kit configurator got it from
+    // the country <select>; here it comes from the same lib/countries.js list,
+    // so the strings are identical.
+    countryName = countries.find((c) => c.Code === code)?.Name || '';
     setRegion(['US', 'CA'].includes(code) ? 'us' : 'row');
   } catch {
+    countryName = '';
     setRegion(''); // unresolved → checkout, matching primary-action.js
   } finally {
     clearTimeout(timer);
@@ -589,12 +757,44 @@ async function detectRegion() {
 
 // ---------- Render updates ----------
 
+/**
+ * Keep ?variant= current in the address bar.
+ *
+ * Not cosmetic: crm-backend parses ?variant= and ?config= off `pageUrl` on the
+ * form submission (webhooks/webflow.ts:49-63) into
+ * webflow_submissions.shopify_variant_id — the ONLY machine-readable link from
+ * a saved build to a real Shopify SKU, and what the follow-up email's one-click
+ * cart link is rebuilt from. Params are preserved (?lp_location=wf, ?config=),
+ * and so is the hash, which the parts-kit version dropped.
+ */
+function syncVariantParam(id) {
+  if (!id || id === variantParamShown) return;
+  variantParamShown = id;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('variant') === String(id)) return;
+    params.set('variant', String(id));
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}?${params}${window.location.hash}`
+    );
+  } catch (err) {
+    console.warn('[Olto] variant param sync failed:', err);
+  }
+}
+
 function update(state) {
   if (!state.ready) return;
 
-  const meta = config.variants[state.baseNumericId] || {};
-  setText('[data-delivery]', meta.delivery ? `Est. delivery ${meta.delivery}` : '');
-  setText('[data-rail-delivery]', meta.delivery || 'Now');
+  syncVariantParam(state.baseNumericId);
+
+  // Delivery copy is "Now" (GTM-433). The live site achieved this with a
+  // MutationObserver patch script (oltodeliverycopy@1.0.0) that overwrote the
+  // bundle's stale per-variant dates; here it is just the copy, and that patch
+  // script is retired at cutover.
+  setText('[data-delivery]', DELIVERY_COPY);
+  setText('[data-rail-delivery]', DELIVERY_COPY_SHORT);
 
   // Color — one row: Silver (bare base) or the active wrap
   const wrapColor = state.wrapLine
@@ -722,6 +922,11 @@ function update(state) {
   updateTotal(fig.amount, fig.suffix, state.currency);
   setText('[data-total-label]', fig.label);
   const cta = app.querySelector('[data-cta]');
+  if (cta) {
+    // Keep the real checkout URL on the anchor so im-attribution can see it.
+    const url = state.region === 'row' ? '' : getCheckoutUrl();
+    cta.setAttribute('href', url || '#');
+  }
   if (cta) cta.textContent = state.region === 'row' ? 'Register interest' : 'Order';
 }
 
