@@ -501,7 +501,9 @@
   z-index: 2;
   background: var(--bg);
   border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-  padding: 26px var(--pad) 140px;
+  /* Clearance for the fixed order bar (~80px) plus a little breathing room.
+     Was 140px, which left ~66px of dead space under the last control. */
+  padding: 26px var(--pad) calc(104px + env(safe-area-inset-bottom));
   overflow-y: auto;
   /* The accessories row is the only thing allowed to move sideways in here */
   overflow-x: hidden;
@@ -1156,9 +1158,13 @@
   margin-top: 18px;
 }
 
+/* Both read as quietly as the two lines above them \u2014 same size, weight and
+   colour as .summary_note and .shipto (obodom, Aug 27). They are exits, not
+   calls to action; only .is-armed steps forward. */
 .config-rep {
   font-size: 12px;
-  color: var(--ink-2);
+  font-weight: 400;
+  color: var(--ink-3);
   text-decoration: underline;
   text-underline-offset: 3px;
   white-space: nowrap;
@@ -1169,9 +1175,9 @@
   border: 1px solid var(--line);
   border-radius: 999px;
   font-size: 12px;
+  font-weight: 400;
   white-space: nowrap;
-  font-weight: 500;
-  color: var(--ink-2);
+  color: var(--ink-3);
   transition: color 0.15s ease-out, border-color 0.15s ease-out;
 }
 
