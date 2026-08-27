@@ -241,6 +241,14 @@ function bindEvents() {
     }
   });
 
+  // The visitor overriding geo-IP. This is the only way `location` gets set
+  // when the lookup is blocked, and the only way a mis-geolocated buyer can
+  // reach the interest form instead of a checkout we cannot fulfil.
+  app.addEventListener('change', (e) => {
+    const select = e.target.closest('[data-country]');
+    if (select) applyCountry(select.value);
+  });
+
   app.addEventListener('submit', (e) => {
     if (e.target.closest('[data-save-form]')) {
       e.preventDefault();
@@ -555,7 +563,7 @@ function openLeadModal(mode) {
   if (title) title.textContent = row ? 'Register your interest' : 'Save your design';
   if (copy) {
     copy.textContent = row
-      ? 'Olto ships in the United States and Canada today. Leave your details and we\u2019ll tell you the moment it reaches you.'
+      ? 'Olto ships in the United States today. Leave your details and we\u2019ll tell you the moment it reaches you.'
       : 'We\u2019ll save this exact Olto so you can pick up where you left off on any device.';
   }
   fillLeadFormSnapshot();
@@ -732,24 +740,44 @@ async function submitSaveForm(form) {
   }
 }
 
-// Region gate: US + Canada order, everyone else registers interest — same
-// rule as modules/location-flow.js (geojs.io, 8s safety timeout, unresolved
-// region falls through to checkout).
+// Region gate. Olto is sellable in the US only (Eddie, 2026-08-26), so unlike
+// modules/location-flow.js — which still lists Canada in US_COUNTRIES and sends
+// it to checkout — only 'US' reaches Shopify here. Everyone else registers
+// interest.
+//
+// An UNRESOLVED region (geo-IP blocked, VPN, the 8s timeout) still falls
+// through to checkout, deliberately: assuming international there would hand a
+// lead form to every US visitor running a privacy blocker. The trade-off is
+// that a mis-geolocated international visitor can reach checkout — the country
+// selector is how they correct it, and it is what sets `location` for the CRM.
+/**
+ * Apply a country code: remember the NAME for the CRM, set the sell/lead
+ * region, and reflect it in both the selector and the desktop rail.
+ */
+function applyCountry(code, { silent } = {}) {
+  const match = countries.find((c) => c.Code === code);
+  countryName = match?.Name || '';
+  setRegion(code === 'US' ? 'us' : 'row');
+  const select = app.querySelector('[data-country]');
+  if (select && match) select.value = code;
+  setText('[data-rail-country]', countryName || '—');
+  if (!silent) pushDataLayer('select_country', { olto_country: countryName || code });
+}
+
 async function detectRegion() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch('https://get.geojs.io/v1/ip/country', { signal: controller.signal });
     const code = (await res.text()).trim().toUpperCase();
-    // Keep the NAME, not just the code — it is the `location` field the CRM
-    // splits US from international on. The parts-kit configurator got it from
-    // the country <select>; here it comes from the same lib/countries.js list,
-    // so the strings are identical.
-    countryName = countries.find((c) => c.Code === code)?.Name || '';
-    setRegion(['US', 'CA'].includes(code) ? 'us' : 'row');
+    // applyCountry keeps the country NAME, which is the `location` field the
+    // CRM splits US from international on — sourced from the same
+    // lib/countries.js list the parts-kit configurator's <select> used, so the
+    // submitted strings are identical.
+    applyCountry(code, { silent: true });
   } catch {
     countryName = '';
-    setRegion(''); // unresolved → checkout, matching primary-action.js
+    setRegion(''); // unresolved → checkout (see the note above)
   } finally {
     clearTimeout(timer);
   }
@@ -788,6 +816,10 @@ function update(state) {
   if (!state.ready) return;
 
   syncVariantParam(state.baseNumericId);
+
+  // Per-variant metadata (hero background art). Delivery no longer comes from
+  // here — see DELIVERY_COPY below — but the hero still does.
+  const meta = config.variants[state.baseNumericId] || {};
 
   // Delivery copy is "Now" (GTM-433). The live site achieved this with a
   // MutationObserver patch script (oltodeliverycopy@1.0.0) that overwrote the

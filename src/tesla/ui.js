@@ -1,6 +1,11 @@
 // Pure HTML builders for the Tesla-style page. No state, no listeners —
 // tesla.js renders this once, then mutates the dynamic bits in update().
 
+// The same 249-entry list the parts-kit configurator's country <select> uses,
+// so the `location` string submitted to the CRM is identical to what
+// /olto/configure has always sent.
+import { countries } from '../lib/countries.js';
+
 // Official IM wordmark (from ~/Code/active/im-creative-library/public/im-wordmark.svg),
 // inlined with currentColor so it inherits text color.
 // Official red Olto wordmark (Brand Files/Logos/2026_Current/Vehicle/OLTO Wordmark-Red.svg)
@@ -211,6 +216,10 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <span class="rail_val rail_val--ship"><span data-rail-delivery>Now</span><span class="rail_dot"></span></span>
         </div>
         <div class="rail_row">
+          <span class="rail_key">Ship to</span>
+          <span class="rail_val" data-rail-country>&mdash;</span>
+        </div>
+        <div class="rail_row">
           <span class="rail_key">Starting at</span>
           <span class="rail_val">${formatMoney(basePrice)}</span>
         </div>
@@ -261,6 +270,17 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
         <p class="intro_price">From ${formatMoney(basePrice)} · or ${formatMoney(
     monthlyFrom
   )}/mo financing</p>
+        <!-- Olto ships in the US only. This is also the one field the CRM splits
+             US from international on (webflow_submissions.country), and the
+             visitor's way to correct a bad geo-IP read. -->
+        <p class="intro_ship">
+          <span class="intro_ship_key">Ship to</span>
+          <select class="intro_country" data-country aria-label="Shipping country">
+            ${countries
+              .map((c) => `<option value="${esc(c.Code)}">${esc(c.Name)}</option>`)
+              .join('')}
+          </select>
+        </p>
         <div class="stats">
           ${STATS.map(
             (s) => `
