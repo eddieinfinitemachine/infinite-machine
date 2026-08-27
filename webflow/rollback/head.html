@@ -1,0 +1,34 @@
+<style>  
+  [form-block],
+  [form-button],
+  [field-validation]{
+    transition: opacity 0.3s ease-out;
+  }
+
+  /* Defaults */
+  .checkout_product-load{
+    display: flex;
+  }
+
+  [form-block],
+  [form-button],
+  [field-validation],
+  [deposit-button],
+  [data-deposit-email],
+  [data-accessories="wrap"],
+  [sf-show-price="deposit"],
+  [data-delivery-date],
+  [data-img-local]:not(.active),
+  .checkout-template{
+    display:none;
+    opacity: 0;
+  }
+
+  /* Tooltips */
+  .tippy-box[data-theme~='olto'] {
+    background-color: var(--border-–-e5e5e5);
+    color: var(--black);
+    border-radius: none;
+    font-size: 1.2rem;
+  }
+</style>

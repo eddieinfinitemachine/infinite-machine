@@ -1,0 +1,28 @@
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.11"></script>
+
+<!-- Get API for Localization -->
+<script async src="https://get.geojs.io/v1/ip/geo.js"></script>
+
+<!-- Tooltips -->
+<script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
+<script>
+  $('[data-preset-text]').each(function() {
+    tippy(this, {
+      content: $(this).text(),
+      arrow: false,
+      delay: 300,
+      theme: 'olto',
+    });
+  });
+</script>
+
+<script>
+  loadPageScript('configurator.js');
+</script>
+
+<!-- NOTE: the 2026-08-17 "IM configurator restructure" block that also lived here
+     is STAGING-ONLY and inert on www (it returns unless the host ends in
+     .webflow.io). Its canonical source is
+     infinite-machine-crm/webflow/olto-configurator-mobile.js — restore it from
+     there if a rollback needs the staging restructure too. -->
