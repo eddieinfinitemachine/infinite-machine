@@ -857,7 +857,7 @@ function openLeadModal(mode) {
   if (title) title.textContent = row ? 'Register your interest' : 'Save your design';
   if (copy) {
     copy.textContent = row
-      ? 'Olto ships in the United States today. Leave your details and we\u2019ll tell you the moment it reaches you.'
+      ? 'Olto ships in the United States and Canada today. Leave your details and we\u2019ll tell you the moment it reaches you.'
       : 'We\u2019ll save this exact Olto so you can pick up where you left off on any device.';
   }
   fillLeadFormSnapshot();
@@ -1219,7 +1219,7 @@ async function saveDesignImage() {
 function applyCountry(code, { silent } = {}) {
   const match = countries.find((c) => c.Code === code);
   countryName = match?.Name || '';
-  setRegion(code === 'US' ? 'us' : 'row');
+  setRegion(SELLABLE.has(code) ? 'us' : 'row');
   const select = app.querySelector('[data-country]');
   if (select && match) select.value = code;
   setText('[data-rail-country]', countryName || '—');
@@ -1268,6 +1268,11 @@ const BUNDLE_CODES = {
   max: 'OLTO-MAX-BUNDLE',
 };
 const OUR_CODES = new Set(Object.values(BUNDLE_CODES));
+
+// Markets Olto can actually be fulfilled to; everyone else registers interest.
+// Was US-only for a day on this branch — Obie corrected it 2026-08-27. Same set
+// as modules/location-flow.js US_COUNTRIES, so the two engines agree.
+const SELLABLE = new Set(['US', 'CA']);
 let lastDiscountSync = null;
 
 /**
