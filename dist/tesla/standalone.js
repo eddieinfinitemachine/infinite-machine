@@ -212,8 +212,17 @@
   box-sizing: border-box;
 }
 
-/* Was \`body\` + \`#app\`. Both collapse onto the mount itself. */
+/* Was \`body\` + \`#app\`. Both collapse onto the mount itself.
+   font-size/line-height/letter-spacing are pinned rather than inherited: the
+   live site sets a responsive root scale (body computes to 25.6px on
+   infinitemachine.com, vs 16px standalone), and anything here without an
+   explicit size would inherit it. Pinning keeps this UI identical on the
+   Webflow page and the standalone demo. */
 .olto-cfg {
+  font-size: 16px;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-align: left;
   font-family: var(--font-text);
   color: var(--ink);
   background: var(--bg);
