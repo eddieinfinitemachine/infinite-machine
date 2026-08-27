@@ -120,23 +120,34 @@ function recompute(cart) {
     }
   }
 
-  // Bundle pricing: the tier price REPLACES the summed item prices, so a
-  // matched bundle bills base + tier, not base + every accessory (obodom,
-  // Aug 26: "3500 + 600 should = 4100, but it says 4415").
-  // TODO(eddie): display-only for now — the Shopify cart still holds
-  // full-price lines, so checkout will show the undiscounted number until the
-  // tiers exist as automatic discounts or bundle products in the store.
-  state.bundleSavings = 0;
-  if (activeKit && typeof activeKit.price === 'number') {
-    const itemsPerSet = state.accessoryLines.reduce(
-      (sum, l) => sum + parseFloat(l.merchandise.price.amount),
-      0
+  // Bundle pricing comes from SHOPIFY, never from local arithmetic.
+  //
+  // This used to compute the tier saving here and subtract it from the
+  // displayed total, which made the page quote a number the store would not
+  // honour: the cart holds full-price component lines, so checkout charged the
+  // undiscounted sum. Measured on staging: page $4,195, Shopify $4,321.
+  //
+  // The authoritative figure is what the store actually took off — the gap
+  // between the cart's subtotal and its total. That is 0 until the automatic
+  // discount exists (see BUNDLE_DISCOUNT_LIVE in ui.js), so today the page
+  // shows the honest a-la-carte price; the moment the discount goes live the
+  // saving appears here with no code change, and if it ever breaks the page
+  // reverts to the truth instead of silently overcharging.
+  const cost = cart?.cost;
+  const applied =
+    cost?.subtotalAmount && cost?.totalAmount
+      ? parseFloat(cost.subtotalAmount.amount) - parseFloat(cost.totalAmount.amount)
+      : 0;
+  state.bundleSavings = applied > 0 ? applied : 0;
+  total -= state.bundleSavings;
+
+  if (activeKit && typeof activeKit.price === 'number' && state.bundleSavings === 0) {
+    // Loud on purpose: a matched bundle with no discount is money the customer
+    // was shown and will not get. Harmless while BUNDLE_DISCOUNT_LIVE is false.
+    console.warn(
+      `[Olto] Bundle "${activeKit.handle}" is in the cart but Shopify applied no discount. ` +
+        'Checkout will bill the full component price.'
     );
-    const savedPerSet = itemsPerSet - activeKit.price;
-    if (savedPerSet > 0) {
-      state.bundleSavings = savedPerSet * state.quantity;
-      total -= state.bundleSavings;
-    }
   }
   state.total = total;
 

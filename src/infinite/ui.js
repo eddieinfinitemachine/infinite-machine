@@ -52,6 +52,33 @@ export const ACCESSORY_LAYERS = {
 // months") — Shop Pay Installments' US monthly plans are 3/6/12, so a 24-month
 // anchor won't be matched at checkout unless the store is on a longer-term
 // financing program. Flip to 12 here if it should mirror Shop Pay exactly.
+/**
+ * Is the Shopify bundle discount live?
+ *
+ * FALSE means the store charges full price for every component, so the page
+ * must NOT advertise a tier price or a saving — adding the Commuter set really
+ * does cost $326, not $200. With this false the cards show the honest
+ * a-la-carte sum and no strikethrough.
+ *
+ * Flip to true once the automatic discount exists in Shopify. The mechanism is
+ * already written in infinite-machine-crm:
+ *   configurator/shopify/olto-bundle-discount/        (the Discount Function)
+ *   configurator/scripts/create-bundle-function-discount.mjs --apply
+ * Its TIERS need recalibrating to the three kits below first — it currently
+ * encodes v6's two, with different component sets.
+ *
+ * Required amounts (live Shopify prices, 2026-08-27):
+ *   Olto Commuter  components $326    tier $200  ->  -$126
+ *   Olto Cargo     components $920    tier $600  ->  -$320
+ *   Olto Max       components $1,196  tier $780  ->  -$416
+ * Max is a superset of Cargo, so Max must be evaluated first; Commuter is
+ * disjoint from both (it is the only tier containing bottom-cover).
+ *
+ * This flag only controls what the page ADVERTISES. The running total always
+ * comes from Shopify's own discount, so it is truthful either way.
+ */
+export const BUNDLE_DISCOUNT_LIVE = false;
+
 export const PAYMENT_PLANS = {
   finance: { months: 24 },
 };
@@ -523,10 +550,13 @@ function buildKitCard(kit, products) {
     const p = products.accessories.find((a) => a.handle === h);
     return productTitle(h, p?.title).replace(/^Olto /, '');
   });
+  // Until the Shopify discount exists, the bundle costs the sum of its parts —
+  // so that is what the card says. No tier price, no strikethrough, no saving.
+  const shown = BUNDLE_DISCOUNT_LIVE ? kit.price : value;
   const pricing = kit.items.length
-    ? `<div class="kit_price">+${formatMoney(kit.price)}</div>
+    ? `<div class="kit_price">+${formatMoney(shown)}</div>
        ${
-         save > 0
+         BUNDLE_DISCOUNT_LIVE && save > 0
            ? `<div class="kit_save"><s>${formatMoney(value)}</s> Save ${formatMoney(save)}</div>`
            : ''
        }`
