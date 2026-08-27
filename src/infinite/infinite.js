@@ -228,6 +228,8 @@ function renderBootError() {
 
 function bindEvents() {
   app.addEventListener('click', (e) => {
+    trackClick(e);
+
     // Consolidated Color row: '' = Silver (bare base), anything else = a wrap
     const colorSwatch = e.target.closest('[data-color-swatch]');
     if (colorSwatch) return selectWrap(colorSwatch.dataset.colorSwatch);
@@ -240,7 +242,10 @@ function bindEvents() {
 
     // Play badge sits inside the card — it must not also add the accessory
     const accPlay = e.target.closest('[data-acc-play]');
-    if (accPlay) return openVideo(accPlay.dataset.accPlay);
+    if (accPlay) {
+      pushDataLayer('play_accessory_video', { olto_accessory: accPlay.dataset.accPlay });
+      return openVideo(accPlay.dataset.accPlay);
+    }
     if (e.target.closest('[data-video-close]')) return closeVideo();
 
     const accSwatch = e.target.closest('[data-acc-swatch]');
@@ -266,7 +271,10 @@ function bindEvents() {
     if (bundleBtn) return selectBundle(bundleBtn.dataset.bundle);
 
     const payBtn = e.target.closest('[data-pay-mode]');
-    if (payBtn) return setPayMode(payBtn.dataset.payMode);
+    if (payBtn) {
+      pushDataLayer('select_pay_mode', { olto_pay_mode: payBtn.dataset.payMode });
+      return setPayMode(payBtn.dataset.payMode);
+    }
 
     if (e.target.closest('[data-qty-dec]')) return changeQty(-1);
     if (e.target.closest('[data-qty-inc]')) return changeQty(1);
@@ -279,12 +287,17 @@ function bindEvents() {
     // Rep chat: hand the click to Intercom when the widget is up, otherwise
     // do nothing and let the anchor's href open /contact as before
     if (e.target.closest('[data-rep-chat]')) {
-      if (openRepChat({ message: repChatMessage(), lead: getStoredLead() })) {
-        e.preventDefault();
-      }
+      const viaIntercom = openRepChat({ message: repChatMessage(), lead: getStoredLead() });
+      // Which channel actually opened matters: the anchor fallback leaves the
+      // page, the messenger does not.
+      pushDataLayer('open_rep_chat', { channel: viaIntercom ? 'intercom' : 'contact_page' });
+      if (viaIntercom) e.preventDefault();
       return;
     }
-    if (e.target.closest('[data-save-image]')) return saveDesignImage();
+    if (e.target.closest('[data-save-image]')) {
+      pushDataLayer('save_design_image');
+      return saveDesignImage();
+    }
     if (e.target.closest('[data-save-close]')) return toggleSaveModal(false);
     if (e.target.closest('[data-config-reset]')) return clearConfiguration();
     if (e.target.closest('[data-cta]')) {
@@ -315,7 +328,14 @@ function bindEvents() {
     // and fires the form_submission webhook into crm-backend.
     if (e.target.closest('[data-wf-form-slot]')) {
       fillLeadFormSnapshot(); // re-stamp in case the cart settled while open
-      pushDataLayer('form_submit', { form_name: 'Olto Interest Form' });
+      pushDataLayer('form_submit', {
+        form_name: 'Olto Interest Form',
+        form_flow: leadModalMode === 'row' ? 'register_interest' : 'save_design',
+      });
+      // The completion event, distinct from save_configuration_open. GA4 had
+      // 82 of these on /olto/configure from a class-bound trigger; this is the
+      // replacement that survives a DOM rebuild.
+      pushDataLayer(leadModalMode === 'row' ? 'register_interest' : 'save_configuration');
     }
   });
 
@@ -328,6 +348,11 @@ function bindEvents() {
     const card = select.closest('[data-acc]');
     if (!card) return;
     const handle = card.dataset.acc;
+    pushDataLayer('select_accessory_option', {
+      olto_accessory: handle,
+      option_name: select.dataset.accOption,
+      option_value: select.value,
+    });
     const added = getState().accessoryLines.some((l) => l.merchandise.product.handle === handle);
     if (!added) return;
     const variant = cardVariant(handle);
@@ -387,6 +412,11 @@ function pickAccessoryColor(btn) {
   if (!group || !card) return;
   const value = btn.dataset.accSwatch;
   if (group.dataset.accValue === value) return;
+  pushDataLayer('select_accessory_option', {
+    olto_accessory: card.dataset.acc,
+    option_name: group.dataset.accOption,
+    option_value: value,
+  });
   group.dataset.accValue = value;
   for (const chip of group.querySelectorAll('[data-acc-swatch]')) {
     const on = chip === btn;
@@ -790,6 +820,9 @@ function setClearButtons(text, armed) {
   }
 }
 async function clearConfiguration() {
+  // Two taps, two meanings: the first arms the control, the second destroys the
+  // build. Reporting only the second would hide everyone who thought better of it.
+  pushDataLayer('clear_configuration', { stage: clearArmed ? 'confirmed' : 'armed' });
   if (!clearArmed) {
     setClearButtons('Tap again to clear', true);
     clearArmed = setTimeout(() => {
@@ -998,10 +1031,18 @@ function initPaneScroll() {
  * your interest", the US sees "Save your design", and BOTH submit the one
  * Webflow form. Only the copy differs.
  */
+// Which flow the one shared Webflow form is standing in for right now. Both the
+// rest-of-world "Register your interest" path and the US "Save your design"
+// path submit the SAME form, so the submit handler cannot tell them apart from
+// the DOM — GTM's old save_configuration trigger read CSS classes for exactly
+// this reason, and that is what a rebuilt DOM broke.
+let leadModalMode = 'save';
+
 function openLeadModal(mode) {
   const modal = app.querySelector('[data-save-modal]');
   if (!modal) return;
   const row = mode === 'row';
+  leadModalMode = row ? 'row' : 'save';
   const title = modal.querySelector('[data-save-title]');
   const copy = modal.querySelector('[data-save-copy]');
   if (title) title.textContent = row ? 'Register your interest' : 'Save your design';
@@ -1149,6 +1190,69 @@ function pushDataLayer(event, extra) {
   } catch (err) {
     console.warn('[Olto] dataLayer push failed:', err); // never block the UI
   }
+}
+
+/**
+ * Click coverage.
+ *
+ * Every named event above is a CONVERSION surface — GTM should bind goals to
+ * those. This is the other half: one `ui_click` per press, naming the control,
+ * so "what do people actually touch in here" is answerable without adding a
+ * tag per button, and so a control added later is covered the day it ships.
+ *
+ * Named events still fire alongside for the controls that have one. Bind
+ * conversions to those, never to `ui_click`, or you will double-count.
+ */
+const CLICK_CONTROLS = [
+  ['[data-cta]', 'order_cta'],
+  ['[data-save]', 'save'],
+  ['[data-color-swatch]', 'color_swatch', (el) => el.dataset.colorSwatch || 'Silver'],
+  ['[data-bundle]', 'bundle_card', (el) => el.dataset.bundle || 'none'],
+  [
+    '[data-acc-scroll]',
+    'accessory_arrow',
+    (el) => (el.dataset.accScroll === '1' ? 'next' : 'prev'),
+  ],
+  ['[data-acc-play]', 'accessory_video', (el) => el.dataset.accPlay],
+  ['[data-acc-swatch]', 'accessory_color', (el) => el.dataset.accSwatch],
+  [
+    '[data-acc-qty-delta]',
+    'accessory_qty',
+    (el) => `${el.closest('[data-acc]')?.dataset.acc || ''}:${el.dataset.accQtyDelta}`,
+  ],
+  ['[data-acc-toggle]', 'accessory_button', (el) => el.dataset.accToggle],
+  ['[data-acc]', 'accessory_card', (el) => el.dataset.acc],
+  ['[data-qty-inc]', 'quantity', () => '+1'],
+  ['[data-qty-dec]', 'quantity', () => '-1'],
+  ['[data-pay-mode]', 'pay_mode', (el) => el.dataset.payMode],
+  ['[data-rep-chat]', 'talk_to_rep'],
+  ['[data-config-reset]', 'clear_configuration'],
+  ['[data-save-image]', 'save_image'],
+  ['[data-save-close]', 'lead_modal_close'],
+  ['[data-video-close]', 'accessory_video_close'],
+  ['[data-save-link]', 'share_link'],
+];
+
+function trackClick(e) {
+  for (const [selector, control, detail] of CLICK_CONTROLS) {
+    const el = e.target.closest(selector);
+    if (!el) continue;
+    pushDataLayer('ui_click', {
+      control,
+      control_detail: (detail ? detail(el) : '') || '',
+    });
+    return;
+  }
+  // Anything clickable that predates or postdates the table still reports, so
+  // "all the buttons" stays true without anyone remembering to add a row.
+  const generic = e.target.closest('button, a[href], input[type="submit"]');
+  if (!generic || !app.contains(generic)) return;
+  pushDataLayer('ui_click', {
+    control: 'other',
+    control_detail: (generic.textContent || generic.value || generic.className || '')
+      .trim()
+      .slice(0, 60),
+  });
 }
 
 // ---------- Save-design lead capture ----------
