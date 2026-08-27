@@ -44,6 +44,7 @@ import {
   GROUND_LAYERS,
   imgUrl,
   KITS,
+  MULTI_UNIT_ACCESSORIES,
   OLTO_WORDMARK_SVG,
   paymentFigures,
   productTitle,
@@ -628,6 +629,7 @@ function changeQty(delta) {
 // one bike" (obodom, Aug 27). The cart line holds configQty × accQty; state.js
 // divides the configuration quantity back out for display.
 function changeAccessoryQty(handle, delta) {
+  if (!MULTI_UNIT_ACCESSORIES.has(handle)) return;
   const state = getState();
   const line = state.accessoryLines.find((l) => l.merchandise.product.handle === handle);
   if (!line || String(line.id).startsWith('tmp_')) return;
@@ -735,7 +737,10 @@ async function applyDesign(design) {
       ? product.variants.find((v) => numericId(v.id) === acc.variantId)
       : null;
     const variant = named || firstVariant(product);
-    if (variant) items.push({ variantId: variant.id, quantity: design.qty * acc.qty });
+    // A hand-edited ?d= could carry a count for something with no stepper, and
+    // the cart would then hold five rear racks the UI cannot show or undo.
+    const each = MULTI_UNIT_ACCESSORIES.has(acc.handle) ? acc.qty : 1;
+    if (variant) items.push({ variantId: variant.id, quantity: design.qty * each });
   }
   setPayMode(design.pay);
   try {

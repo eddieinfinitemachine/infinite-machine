@@ -202,6 +202,16 @@ export const KITS = [
 // Bundle-only products (no photography) stay out of the Accessories row
 const ROW_HIDDEN = new Set(['bottom-cover']);
 
+// Which accessories get a unit stepper.
+//
+// A helmet is the only thing on this list that a single order plausibly needs
+// two of — one rider, one passenger. Everything else is fitted to the vehicle,
+// so a count would be an invitation to a mistake rather than a choice ("do we
+// want units on everything? or just helmet" / "Just helmet" — Obie and Joseph,
+// Aug 27). Adding a handle here is all it takes to give it a stepper; the cart,
+// share-link and CRM plumbing already carries counts for anything.
+export const MULTI_UNIT_ACCESSORIES = new Set(['open-face-helmet', 'full-face-helmet']);
+
 // Play badge for accessories that carry an instruction clip — same feature as
 // the live configurator's Bunny lightbox (modules/accessory-video.js), which
 // this page had been missing ("put back the videos that are in the current
@@ -731,7 +741,9 @@ function buildAccessoryCard(p) {
           : ''
       }
       <div class="acc_actions">
-        <!-- Only meaningful once the item is in the cart; .acc.is-added reveals it -->
+        ${
+          MULTI_UNIT_ACCESSORIES.has(p.handle)
+            ? `<!-- Only meaningful once the item is in the cart; .acc.is-added reveals it -->
         <div class="acc_qty" data-acc-qty>
           <button
             type="button"
@@ -746,7 +758,9 @@ function buildAccessoryCard(p) {
             data-acc-qty-delta="1"
             aria-label="One more ${esc(p.title)}"
           >+</button>
-        </div>
+        </div>`
+            : ''
+        }
         <button type="button" class="acc_btn" data-acc-toggle="${esc(p.handle)}">Add</button>
       </div>
     </div>
