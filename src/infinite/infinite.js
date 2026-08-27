@@ -353,6 +353,7 @@ function bindEvents() {
       option_name: select.dataset.accOption,
       option_value: select.value,
     });
+    refreshAccessoryImage(card);
     const added = getState().accessoryLines.some((l) => l.merchandise.product.handle === handle);
     if (!added) return;
     const variant = cardVariant(handle);
@@ -401,6 +402,25 @@ function syncAccessoryOptions(card, line) {
       chip.setAttribute('aria-pressed', on ? 'true' : 'false');
     }
   }
+  // After the controls, never before — refreshAccessoryImage reads them.
+  refreshAccessoryImage(card);
+}
+
+/**
+ * Point the card's photo at the variant the controls currently resolve to.
+ *
+ * Every helmet variant carries its own shot in Shopify (Black and Silver), so
+ * picking a colour can show that colour rather than leaving the buyer to trust
+ * a chip against a photo of the other one. Products whose variants share one
+ * image simply resolve to the same URL and nothing changes.
+ */
+function refreshAccessoryImage(card) {
+  const img = card.querySelector('.acc_img');
+  if (!img) return;
+  const url = cardVariant(card.dataset.acc)?.image?.url;
+  if (!url) return;
+  const next = imgUrl(url, 240);
+  if (next && img.getAttribute('src') !== next) img.setAttribute('src', next);
 }
 
 // Colour chips are the swatch-group equivalent of a select's change event:
@@ -423,6 +443,7 @@ function pickAccessoryColor(btn) {
     chip.classList.toggle('is-selected', on);
     chip.setAttribute('aria-pressed', on ? 'true' : 'false');
   }
+  refreshAccessoryImage(card);
   const handle = card.dataset.acc;
   const added = getState().accessoryLines.some((l) => l.merchandise.product.handle === handle);
   if (!added) return; // before Add it just stages the choice, same as a select
