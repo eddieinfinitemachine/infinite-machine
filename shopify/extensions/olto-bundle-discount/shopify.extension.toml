@@ -20,20 +20,24 @@
 #
 # Finally flip BUNDLE_DISCOUNT_LIVE in src/infinite/ui.js, rebuild, retag.
 #
-api_version = "2025-07"
+api_version = "2026-07"
 
 [[extensions]]
 name = "Olto bundle discount"
 handle = "olto-bundle-discount"
 type = "function"
-description = "Olto Commuter / Olto Max bundle pricing — fixed amount off the full component set only."
+uid = "fe7bd8f0-2fcd-37b2-430f-299bfd5accd7d1dc29f9"
+description = "Olto Commuter / Cargo / Max bundle pricing — fixed amount off the full component set only."
 
   [[extensions.targeting]]
   target = "cart.lines.discounts.generate.run"
   input_query = "src/cart_lines_discounts_generate_run.graphql"
-  export = "cartLinesDiscountsGenerateRun"
+  export = "cart-lines-discounts-generate-run"
 
-[extensions.build]
-command = ""
-path = "dist/function.wasm"
-watch = ["src/**/*.js"]
+  # Empty command is correct for a JS function: the CLI compiles src/index.js
+  # to WASM with javy itself. It only works when the extension is a real JS
+  # project (package.json + src/index.js), which is what the earlier build
+  # failure was actually complaining about.
+  [extensions.build]
+  command = ""
+  path = "dist/function.wasm"

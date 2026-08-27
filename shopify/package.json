@@ -1,0 +1,15 @@
+{
+  "name": "olto-bundles",
+  "private": true,
+  "description": "Shopify app shell hosting the Olto bundle discount Function. No server, no UI.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test extensions/olto-bundle-discount/test/*.test.mjs"
+  },
+  "dependencies": {
+    "@shopify/shopify_function": "~2.0.1"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "5.0.6"
+  }
+}

@@ -1,0 +1,7 @@
+# pnpm v10+ refuses to run dependency build scripts unless they are approved,
+# and v11 reads that approval from here rather than package.json.
+# esbuild and core-js are build-time only, pulled in by the Shopify CLI's
+# function tooling (@shopify/shopify_function compiles the JS to WASM).
+onlyBuiltDependencies:
+  - esbuild
+  - core-js

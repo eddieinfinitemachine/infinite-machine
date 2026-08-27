@@ -29,3 +29,9 @@ typings/
 **/.DS_Store
 .vercel
 dist/webflow-harness.html
+
+# Shopify app project (Function build artifacts + deps)
+shopify/node_modules/
+shopify/extensions/*/node_modules/
+shopify/extensions/*/dist/
+shopify/.shopify/
