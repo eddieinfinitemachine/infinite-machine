@@ -1,8 +1,9 @@
-// Tesla-configurator-inspired mobile page for Olto.
-// Standalone shell (dist/tesla/) — reuses the SDK's data + cart layer, builds
-// its own DOM. GSAP comes from the page (CDN) like Webflow provides it in prod.
+// Infinite configurator page for Olto.
+// Standalone shell (dist/infinite/) — reuses the SDK's data + cart layer,
+// builds its own DOM. GSAP comes from the page (CDN) like Webflow provides
+// it in prod.
 
-import './tesla.css';
+import './infinite.css';
 
 import config from '../configs/olto.js';
 import {
@@ -19,6 +20,7 @@ import {
 } from '../lib/cart.js';
 import { client } from '../lib/client.js';
 import { fetchProducts } from '../lib/products.js';
+import { initRepChat, openRepChat } from './intercom.js';
 import {
   getState,
   gidForVariant,
@@ -36,7 +38,10 @@ import {
   formatMoney,
   imgUrl,
   KITS,
+  OLTO_WORDMARK_SVG,
   paymentFigures,
+  productTitle,
+  variantForOptions,
 } from './ui.js';
 
 const gsap = window.gsap || null;
@@ -69,7 +74,7 @@ async function boot() {
   try {
     products = await fetchProducts(config);
   } catch (err) {
-    console.error('[Tesla] Failed to load products:', err);
+    console.error('[Infinite] Failed to load products:', err);
     renderBootError();
     return;
   }
@@ -87,15 +92,29 @@ async function boot() {
     products,
     bundles: KITS.filter((k) => k.items.length).map((k) => ({
       handle: k.key,
+      price: k.price, // tier price replaces the summed item prices when matched
+      label: k.label,
       products: k.items.map((h) => ({ handle: h })),
     })),
   });
+
+  // ?layout=rail brings back the three-pane wide-desktop layout (left spec
+  // rail) for comparison; the default desktop is the tablet-style two-pane one
+  // Eddie picked on Aug 26.
+  if (new URLSearchParams(window.location.search).get('layout') === 'rail') {
+    app.classList.add('is-rail');
+  }
 
   app.innerHTML = buildPage({ config, products, wrapVariantsByColor });
   bindEvents();
   subscribe(update);
   update(getState());
-  initNudge();
+  initPaneScroll();
+  initVideo();
+  // Load the messenger behind the page so "Talk to a rep" can open it inline;
+  // idle so it never competes with the hero imagery for bandwidth
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
+  idle(() => initRepChat());
 
   // A shared ?d= link fully describes a configuration — rebuild it into a
   // fresh session (works cross-device; the cart is created on this browser).
@@ -133,7 +152,7 @@ async function addKitOnlyProducts() {
     const p = data?.product;
     if (p) products.accessories.push({ ...p, variants: p.variants.edges.map((e) => e.node) });
   } catch (err) {
-    console.warn('[Tesla] Kit-only product fetch failed:', err); // Commuter just omits it
+    console.warn('[Infinite] Kit-only product fetch failed:', err); // Commuter just omits it
   }
 }
 
@@ -167,10 +186,23 @@ function bindEvents() {
     if (colorSwatch) return selectWrap(colorSwatch.dataset.colorSwatch);
 
     const accScroll = e.target.closest('[data-acc-scroll]');
-    if (accScroll) return scrollAccessories(Number(accScroll.dataset.accScroll));
+    if (accScroll) return scrollRow('[data-acc-list]', Number(accScroll.dataset.accScroll));
 
     const accBtn = e.target.closest('[data-acc-toggle]');
     if (accBtn) return toggleAccessory(accBtn.dataset.accToggle);
+
+    // Play badge sits inside the card — it must not also add the accessory
+    const accPlay = e.target.closest('[data-acc-play]');
+    if (accPlay) return openVideo(accPlay.dataset.accPlay);
+    if (e.target.closest('[data-video-close]')) return closeVideo();
+
+    // The whole card is the target, not just its Add button (Eddie, Aug 26 pm:
+    // "tapping an accessory here should add it"). The size/colour selects keep
+    // their own clicks — picking a variant must not add or drop the line.
+    const accCard = e.target.closest('[data-acc]');
+    if (accCard && !e.target.closest('select, label')) {
+      return toggleAccessory(accCard.dataset.acc);
+    }
 
     const bundleBtn = e.target.closest('[data-bundle]');
     if (bundleBtn) return selectBundle(bundleBtn.dataset.bundle);
@@ -184,11 +216,18 @@ function bindEvents() {
     if (e.target.closest('[data-save]')) {
       // Every save goes through the form (Eddie, Aug 26) — a returning
       // visitor gets it prefilled from their stored lead
-      if (e.target.closest('[data-nudge]')) hideNudge();
       return toggleSaveModal(true);
     }
+    // Rep chat: hand the click to Intercom when the widget is up, otherwise
+    // do nothing and let the anchor's href open /contact as before
+    if (e.target.closest('[data-rep-chat]')) {
+      if (openRepChat({ message: repChatMessage(), lead: getStoredLead() })) {
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.target.closest('[data-save-image]')) return saveDesignImage();
     if (e.target.closest('[data-save-close]')) return toggleSaveModal(false);
-    if (e.target.closest('[data-nudge-close]')) return hideNudge();
     if (e.target.closest('[data-config-reset]')) return clearConfiguration();
     if (e.target.closest('[data-cta]')) return primaryAction();
     if (e.target.closest('[data-interest-close]')) return toggleInterest(false);
@@ -200,31 +239,63 @@ function bindEvents() {
       submitSaveForm(e.target);
     }
   });
+
+  // Option selects on accessory cards (helmet size/color — team review,
+  // Aug 26). Changing an option while the accessory is in the cart swaps the
+  // line to the matching variant; before Add it just stages the choice.
+  app.addEventListener('change', (e) => {
+    const select = e.target.closest('[data-acc-option]');
+    if (!select) return;
+    const card = select.closest('[data-acc]');
+    if (!card) return;
+    const handle = card.dataset.acc;
+    const added = getState().accessoryLines.some((l) => l.merchandise.product.handle === handle);
+    if (!added) return;
+    const variant = cardVariant(handle);
+    if (variant) setLine(handle, variant.id);
+  });
 }
 
-let accScrollTween = null;
-function scrollAccessories(dir) {
-  const list = app.querySelector('[data-acc-list]');
+// The variant an accessory card currently points at: its option selects if it
+// has any, else the first sellable variant.
+function cardVariant(handle) {
+  const product = products.accessories.find((p) => p.handle === handle);
+  if (!product) return null;
+  const card = app.querySelector(`[data-acc="${handle}"]`);
+  const selects = card ? [...card.querySelectorAll('[data-acc-option]')] : [];
+  if (!selects.length) return firstVariant(product);
+  const selections = {};
+  for (const s of selects) selections[s.dataset.accOption] = s.value;
+  return variantForOptions(product, selections) || firstVariant(product);
+}
+
+// Shared arrow-scroll for the horizontal card rows (accessories + bundles).
+// Roughly one viewport-third per tap. Native smooth scrollBy no-ops on these
+// containers in Chrome, and GSAP can't tween scrollLeft on a DOM target
+// without ScrollToPlugin (CSSPlugin swallows it) — so tween a proxy object,
+// same pattern as updateTotal. 0.45s IM ease as everywhere.
+const rowScrollTweens = new Map();
+function scrollRow(selector, dir) {
+  const list = app.querySelector(selector);
   if (!list) return;
-  // Two cards per tap (150px card + 10px gap). Native smooth scrollBy
-  // no-ops on this container in Chrome, and GSAP can't tween scrollLeft on a
-  // DOM target without ScrollToPlugin (CSSPlugin swallows it) — so tween a
-  // proxy object, same pattern as updateTotal. 0.45s IM ease as everywhere.
   const from = list.scrollLeft;
   const target = Math.max(0, Math.min(list.scrollWidth - list.clientWidth, from + dir * 320));
   // Same document.hidden guard as updateTotal: rAF pauses in background
   // tabs, which would freeze the tween at frame 0
   if (gsap && !document.hidden) {
-    if (accScrollTween) accScrollTween.kill();
+    rowScrollTweens.get(selector)?.kill();
     const obj = { v: from };
-    accScrollTween = gsap.to(obj, {
-      v: target,
-      duration: 0.45,
-      ease: 'power2.out',
-      onUpdate: () => {
-        list.scrollLeft = obj.v;
-      },
-    });
+    rowScrollTweens.set(
+      selector,
+      gsap.to(obj, {
+        v: target,
+        duration: 0.45,
+        ease: 'power2.out',
+        onUpdate: () => {
+          list.scrollLeft = obj.v;
+        },
+      })
+    );
   } else {
     list.scrollLeft = target;
   }
@@ -248,6 +319,14 @@ function selectWrap(color) {
   if (variant) setLine(wrapHandle, variant.id);
 }
 
+// What a removal took down with it, so re-adding the same item puts the set
+// back exactly as it was — otherwise dropping the rear rack silently drops the
+// basket and mounting plate, and re-adding the rack alone leaves the bundle
+// short two items and un-discounted (obodom, Aug 26: "if someone unclicks one
+// of the items in accessories and re-adds it, we should make sure the bundle
+// discount still applies").
+let lastCascade = null;
+
 function toggleAccessory(handle) {
   const state = getState();
   const has = state.accessoryLines.some((l) => l.merchandise.product.handle === handle);
@@ -257,15 +336,22 @@ function toggleAccessory(handle) {
     setLine(handle, null);
     // Removing a parent removes the children that require it
     const children = deps[handle]?.requiredBy || [];
+    const cascaded = [];
     for (const child of children) {
       if (state.accessoryLines.some((l) => l.merchandise.product.handle === child)) {
         setLine(child, null);
+        cascaded.push(child);
       }
     }
+    lastCascade = cascaded.length ? { trigger: handle, removed: cascaded } : null;
     return;
   }
 
   addAccessory(handle);
+  if (lastCascade?.trigger === handle) {
+    for (const child of lastCascade.removed) addAccessory(child);
+    lastCascade = null;
+  }
   // Adding a child pulls its required parent in
   for (const [parent, rule] of Object.entries(deps)) {
     if (rule.requiredBy?.includes(handle)) {
@@ -276,8 +362,8 @@ function toggleAccessory(handle) {
 }
 
 function addAccessory(handle) {
-  const product = products.accessories.find((p) => p.handle === handle);
-  const variant = firstVariant(product);
+  // Cards with option selects (helmet size/color) add the chosen variant
+  const variant = cardVariant(handle);
   if (variant) setLine(handle, variant.id);
 }
 
@@ -328,7 +414,7 @@ async function selectBundle(handle) {
       .filter(Boolean);
     if (items.length) await addLines(items);
   } catch (err) {
-    console.error('[Tesla] Bundle select failed:', err);
+    console.error('[Infinite] Bundle select failed:', err);
   } finally {
     bundleBusy = false;
     if (bundleQueued) {
@@ -368,7 +454,8 @@ function readDesignParam() {
     base,
     wrap: wrap || null,
     qty: Math.min(99, Math.max(1, parseInt(qty, 10) || 1)),
-    pay: ['cash', 'lease', 'finance'].includes(pay) ? pay : 'finance',
+    // 'lease' still parses from old links but maps to cash — the plan is gone
+    pay: ['cash', 'finance'].includes(pay) ? pay : 'cash',
     accs: (accs || '').split('~').filter(Boolean),
   };
 }
@@ -386,7 +473,7 @@ async function applyDesign(design) {
   try {
     await addLines(items);
   } catch (err) {
-    console.error('[Tesla] Failed to apply shared design:', err);
+    console.error('[Infinite] Failed to apply shared design:', err);
   }
   // Drop ?d= so a reload doesn't re-seed another copy (?config= stays — the
   // cart layer keeps it in sync)
@@ -405,6 +492,38 @@ function designUrl() {
   const url = new URL(window.location.href);
   url.searchParams.set('d', code);
   return url.toString();
+}
+
+// What the rep sees in their inbox: the build, the price the visitor is
+// looking at, and the ?d= link that rebuilds it on their side.
+function repChatMessage() {
+  const state = getState();
+  const wrap = state.wrapLine
+    ? wrapColorOf(state.wrapLine.merchandise) || state.wrapLine.merchandise.title
+    : '';
+  const base = config.variants[state.baseNumericId]?.color || 'Silver';
+  const bits = [wrap ? `${wrap} wrap` : `${base} finish`];
+  const accessories = state.accessoryLines.map((l) =>
+    productTitle(l.merchandise.product.handle, l.merchandise.product.title)
+  );
+  if (accessories.length) bits.push(accessories.join(', '));
+  if (state.quantity > 1) bits.push(`qty ${state.quantity}`);
+
+  const total = formatMoney(state.total, state.currency);
+  let price = `Total ${total}`;
+  if (state.payMode === 'finance') {
+    const { amount } = paymentFigures(state.total, state.currency, 'finance');
+    price = `${formatMoney(amount, state.currency)}/mo with Shop Pay (${total} total)`;
+  }
+
+  return [
+    'Hi — I’m designing an Olto and have a question.',
+    '',
+    `My build: ${bits.join(' · ')}`,
+    price,
+    designUrl(),
+    '',
+  ].join('\n');
 }
 
 // Same action as the live configurator's [data-config-reset] (config-reset.js):
@@ -433,9 +552,10 @@ async function clearConfiguration() {
   try {
     await removeConfig(getCurrentConfigSessionId());
   } catch (err) {
-    console.error('[Tesla] Clear failed:', err);
+    console.error('[Infinite] Clear failed:', err);
   }
-  setPayMode('finance'); // back to the default view
+  lastCascade = null;
+  setPayMode('cash'); // back to the default view
   // Fresh session starts empty — re-seed the default bike (upstream's
   // main-product-cart does the same on the live site)
   setLineForProduct(products.main.handle, gidForVariant(config.defaultVariantId));
@@ -449,34 +569,155 @@ function primaryAction() {
   if (url) window.location.href = url;
 }
 
-// Scroll nudge: first time the Payment section comes into view (deep-scroll,
-// high intent), slide up a card offering Save / talk to a rep. Once per page
-// LOAD — the old sessionStorage once-per-session gate meant a demo tab never
-// showed it again (Eddie: "where did the pop up go", Aug 26).
-function initNudge() {
-  const nudge = app.querySelector('[data-nudge]');
-  const target = app.querySelector('[data-section="payment"]');
-  if (!nudge || !target) return;
-  const io = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      io.disconnect();
-      nudge.hidden = false;
-      requestAnimationFrame(() => nudge.classList.add('is-in'));
-    },
-    { threshold: 0.3 }
-  );
-  io.observe(target);
+// ---------- Accessory instruction videos ----------
+// The live configurator plays a Bunny HLS clip per accessory from the
+// custom.instruction_video metafield (modules/accessory-video.js); this page
+// was showing stills only ("put back the videos that are in the current
+// configurator" — Eddie, Aug 26 pm). Same sources, same click-to-open modal:
+// plays with sound (the click is the user gesture), closes on the backdrop,
+// the X, ESC, or when the clip ends.
+//
+// Safari plays .m3u8 natively; everywhere else needs hls.js, so the library is
+// warmed at idle — loading it inside the click would burn the user activation
+// and drop us to muted playback.
+
+const HLS_CDN = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
+let hlsLib = null;
+let hlsPending = null;
+let hlsInstance = null;
+let currentVideoUrl = null;
+
+function videoEl() {
+  return app.querySelector('[data-video-el]');
 }
 
-function hideNudge() {
-  const nudge = app.querySelector('[data-nudge]');
-  if (!nudge || nudge.hidden) return;
-  nudge.classList.remove('is-in');
-  setTimeout(() => {
-    nudge.hidden = true;
-  }, 450);
+function nativeHls() {
+  return Boolean(videoEl()?.canPlayType('application/vnd.apple.mpegurl'));
 }
+
+// Memoized loader — warmed at idle for the browsers we know need it, and
+// awaited on demand when a browser that CLAIMED native HLS then fails on it.
+function loadHls() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (hlsPending) return hlsPending;
+  hlsPending = new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = HLS_CDN;
+    script.onload = () => {
+      hlsLib = window.Hls || null;
+      resolve(hlsLib);
+    };
+    script.onerror = () => {
+      console.warn('[Infinite] hls.js failed to load — videos disabled');
+      resolve(null);
+    };
+    document.head.appendChild(script);
+  });
+  return hlsPending;
+}
+
+function warmHls() {
+  if (nativeHls() || window.Hls || hlsLib) return;
+  const anyVideo = products?.accessories?.some((p) => p.instructionVideo);
+  if (!anyVideo) return;
+  loadHls();
+}
+
+function openVideo(handle) {
+  const product = products?.accessories?.find((p) => p.handle === handle);
+  const url = product?.instructionVideo;
+  const modal = app.querySelector('[data-video-modal]');
+  const video = videoEl();
+  if (!url || !modal || !video) return;
+
+  setText('[data-video-title]', productTitle(handle, product.title));
+  currentVideoUrl = url;
+  const Hls = window.Hls || hlsLib;
+  if (nativeHls()) {
+    video.src = url;
+  } else if (Hls?.isSupported()) {
+    if (!hlsInstance) {
+      hlsInstance = new Hls({ maxBufferLength: 30 });
+      hlsInstance.attachMedia(video);
+    }
+    hlsInstance.loadSource(url);
+  } else {
+    video.src = url; // last resort — some browsers manage .m3u8 on their own
+  }
+
+  modal.hidden = false;
+  video.muted = false;
+  // Called inside the click's call stack, so unmuted playback is allowed; if a
+  // browser still refuses, fall back to muted rather than a dead player.
+  const played = video.play?.();
+  if (played?.catch) {
+    played.catch(() => {
+      video.muted = true;
+      video.play?.().catch((err) => console.warn('[Infinite] Video playback blocked:', err));
+    });
+  }
+}
+
+function closeVideo() {
+  const modal = app.querySelector('[data-video-modal]');
+  const video = videoEl();
+  if (!modal || modal.hidden) return;
+  video?.pause?.();
+  modal.hidden = true;
+}
+
+function initVideo() {
+  const video = videoEl();
+  if (!video) return;
+  video.addEventListener('ended', closeVideo);
+  // Chrome reports canPlayType('…mpegurl') === 'maybe' and does play HLS; if a
+  // browser claims that and then fails, retry the same clip through hls.js
+  // instead of leaving a dead player.
+  video.addEventListener('error', async () => {
+    if (!currentVideoUrl || hlsInstance) return;
+    console.warn('[Infinite] Native HLS failed — retrying through hls.js');
+    const Hls = window.Hls || hlsLib || (await loadHls());
+    if (!Hls?.isSupported() || hlsInstance) return;
+    hlsInstance = new Hls({ maxBufferLength: 30 });
+    hlsInstance.attachMedia(video);
+    hlsInstance.loadSource(currentVideoUrl);
+    video.play?.().catch((err) => console.warn('[Infinite] hls.js retry failed:', err));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeVideo();
+  });
+  warmHls();
+}
+
+// Desktop panes: the sheet is the only scroll container on the page, so a
+// wheel over the hero or the left rail did nothing at all — two thirds of the
+// window was a dead zone ("weird side scroll", Eddie, Aug 26 pm). Forward
+// those gestures to the sheet so the layout reads as one scrolling page.
+// Anything that scrolls itself (the sheet, a modal, the accessories row)
+// keeps its native behaviour.
+function initPaneScroll() {
+  const sheet = app.querySelector('.sheet');
+  if (!sheet) return;
+  const panes = window.matchMedia('(min-width: 900px)');
+  window.addEventListener(
+    'wheel',
+    (e) => {
+      if (!panes.matches) return;
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest('.sheet, .modal')) return;
+      // deltaMode: 0 = pixels, 1 = lines, 2 = pages
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? sheet.clientHeight : 1;
+      sheet.scrollTop += e.deltaY * unit;
+    },
+    { passive: true }
+  );
+}
+
+// The save nudge (a pop-up card that slid in at the Quantity section, run as
+// a 50/50 A/B) is gone — Eddie, Aug 26 pm: "remove the pop up". Saving is the
+// order bar's Save button, and "Talk to a rep" moved next to Clear
+// configuration in the summary/rail.
 
 function toggleInterest(open) {
   const modal = app.querySelector('[data-interest]');
@@ -489,7 +730,7 @@ function toggleInterest(open) {
 // deliberately NOT wired to a backend yet (Eddie's call, 2026-08-25) — the
 // lead only lands in the visitor's own localStorage. When it's time to wire
 // it (CRM endpoint), submitSaveForm is the single hook point.
-const LEAD_KEY = 'olto_tesla_lead';
+const LEAD_KEY = 'olto_infinite_lead';
 
 function getStoredLead() {
   try {
@@ -510,23 +751,34 @@ function toggleSaveModal(open) {
     if (form) {
       form.hidden = false;
       const lead = getStoredLead();
-      for (const key of ['name', 'email', 'phone']) {
+      // Legacy leads stored a single `name` — split it across the new
+      // first/last fields (Eddie, Aug 26 pm: "break out first and last name
+      // ... make sure we're getting all the qualified info")
+      const [legacyFirst, ...legacyRest] = (lead?.name || '').split(/\s+/);
+      const prefill = {
+        first_name: lead?.first || legacyFirst || '',
+        last_name: lead?.last || legacyRest.join(' ') || '',
+        email: lead?.email || '',
+        phone: lead?.phone || '',
+      };
+      for (const [key, value] of Object.entries(prefill)) {
         const input = form.querySelector(`input[name="${key}"]`);
-        if (input && !input.value) input.value = lead?.[key] || '';
+        if (input && !input.value) input.value = value;
       }
     }
     if (done) done.hidden = true;
-    modal.querySelector('input[name="name"]')?.focus();
+    modal.querySelector('input[name="first_name"]')?.focus();
   }
 }
 
 async function submitSaveForm(form) {
-  const name = form.name.value.trim();
+  const first = form.first_name.value.trim();
+  const last = form.last_name.value.trim();
   const email = form.email.value.trim();
   const phone = form.phone.value.trim();
   const error = form.querySelector('[data-save-error]');
   let problem = null;
-  if (!name) problem = 'Please add your name.';
+  if (!first || !last) problem = 'Please add your first and last name.';
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     problem = 'That email doesn’t look right.';
   } else if (phone.replace(/\D/g, '').length < 7) {
@@ -542,7 +794,7 @@ async function submitSaveForm(form) {
   if (error) error.hidden = true;
 
   try {
-    localStorage.setItem(LEAD_KEY, JSON.stringify({ name, email, phone }));
+    localStorage.setItem(LEAD_KEY, JSON.stringify({ first, last, email, phone }));
   } catch {
     // Storage blocked (private mode) — the form just shows again next save
   }
@@ -567,6 +819,172 @@ async function submitSaveForm(form) {
     }
     const link = done.querySelector('[data-save-link]');
     if (link) link.textContent = url;
+  }
+}
+
+// ---------- Save-as-image ----------
+// "It might also be cool to have an option to save this as an image" (Eddie,
+// Aug 26 pm). Renders the current build — hero shot, visible accessory
+// layers, config summary — onto a 1080×1350 canvas and downloads it as a
+// PNG. Offered only on the post-save panel so the lead form still fronts
+// every save. CDN images load with crossOrigin=anonymous (Shopify + Webflow
+// both serve ACAO *); if one refuses, the canvas would taint, so we fail
+// soft with a note instead of a broken download.
+
+function loadImage(src, cors) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    if (cors) img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`image failed: ${src}`));
+    img.src = src;
+  });
+}
+
+function drawContain(ctx, img, box) {
+  const scale = Math.min(box.w / img.naturalWidth, box.h / img.naturalHeight);
+  const w = img.naturalWidth * scale;
+  const h = img.naturalHeight * scale;
+  ctx.drawImage(img, box.x + (box.w - w) / 2, box.y + (box.h - h) / 2, w, h);
+}
+
+const IMG_FONT_TEXT = '"Helvetica Now Text", "Helvetica Neue", Helvetica, Arial, sans-serif';
+const IMG_FONT_DISPLAY = '"Helvetica Now Display", "Helvetica Neue", Helvetica, Arial, sans-serif';
+
+async function saveDesignImage() {
+  const note = app.querySelector('[data-save-image-note]');
+  if (note) note.hidden = true;
+  try {
+    const state = getState();
+    const W = 1080;
+    const H = 1350;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // Red Olto wordmark — the inline SVG rasterized via a same-origin blob
+    // (the string carries no intrinsic size, so Safari needs it spelled out)
+    const svg = OLTO_WORDMARK_SVG.replace('<svg ', '<svg width="922" height="201" ');
+    const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    try {
+      drawContain(ctx, await loadImage(svgUrl), { x: W / 2 - 160, y: 64, w: 320, h: 70 });
+    } finally {
+      URL.revokeObjectURL(svgUrl);
+    }
+
+    // Hero + the accessory layers currently on the bike — same paint order
+    // (DOM order) and the same non-composite suppression rule as the page
+    const box = { x: 90, y: 190, w: 900, h: 620 };
+    const heroSrc = app.querySelector('.hero_img.is-active')?.src;
+    if (heroSrc) drawContain(ctx, await loadImage(heroSrc, true), box);
+    const suppressed = app.querySelector('[data-layers]')?.classList.contains('is-suppressed');
+    if (!suppressed) {
+      for (const el of app.querySelectorAll('.hero_layer.is-on')) {
+        try {
+          drawContain(ctx, await loadImage(el.src, true), box);
+        } catch {
+          // one refused layer shouldn't sink the whole export
+        }
+      }
+    }
+
+    // Config summary — same rows the sheet shows
+    const rows = [];
+    if (state.bikeLine) {
+      rows.push([
+        `Olto - ${config.variants[state.baseNumericId]?.color || state.bikeLine.merchandise.title}`,
+        parseFloat(state.bikeLine.merchandise.price.amount),
+      ]);
+    }
+    if (state.wrapLine) {
+      rows.push([
+        `Wrap - ${state.wrapLine.merchandise.title}`,
+        parseFloat(state.wrapLine.merchandise.price.amount),
+      ]);
+    }
+    for (const l of state.accessoryLines) {
+      rows.push([
+        productTitle(l.merchandise.product.handle, l.merchandise.product.title),
+        parseFloat(l.merchandise.price.amount),
+      ]);
+    }
+
+    if (state.bundleSavings > 0) {
+      rows.push(['Bundle discount', -state.bundleSavings / (state.quantity || 1)]);
+    }
+
+    const left = 120;
+    const right = W - 120;
+    let y = 880;
+    const shown = rows.slice(0, 7);
+    ctx.font = `26px ${IMG_FONT_TEXT}`;
+    for (const [label, amount] of shown) {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillText(label, left, y);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#252525';
+      ctx.fillText(formatMoney(amount, state.currency), right, y);
+      y += 44;
+    }
+    if (rows.length > shown.length) {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillText(`+ ${rows.length - shown.length} more`, left, y);
+      y += 44;
+    }
+
+    y += 8;
+    ctx.strokeStyle = '#e5e5e5';
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(right, y);
+    ctx.stroke();
+    y += 56;
+
+    ctx.font = `500 34px ${IMG_FONT_DISPLAY}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#252525';
+    ctx.fillText('Total', left, y);
+    ctx.textAlign = 'right';
+    ctx.fillText(formatMoney(state.total, state.currency), right, y);
+    y += 40;
+    if (state.quantity > 1) {
+      ctx.font = `22px ${IMG_FONT_TEXT}`;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillText(`${state.quantity} configurations`, right, y);
+    }
+
+    ctx.font = `22px ${IMG_FONT_TEXT}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#9a9a9a';
+    ctx.fillText('Taxes and shipping calculated at checkout - infinitemachine.com', left, H - 80);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        if (note) {
+          note.textContent =
+            'Couldn’t generate the image in this browser — a screenshot works too.';
+          note.hidden = false;
+        }
+        return;
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'my-olto.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    }, 'image/png');
+  } catch (err) {
+    console.error('[Infinite] Image export failed:', err);
+    if (note) {
+      note.textContent = 'Couldn’t generate the image in this browser — a screenshot works too.';
+      note.hidden = false;
+    }
   }
 }
 
@@ -687,18 +1105,10 @@ function update(state) {
     el.classList.toggle('is-added', has);
     el.closest('[data-acc]')?.classList.toggle('is-added', has);
   }
-  // Un-added items lead the row; added ones move to the end (stable sort
-  // keeps catalog order within each group) — Eddie's call, Aug 26
-  const accList = app.querySelector('[data-acc-list]');
-  if (accList) {
-    const cards = [...accList.querySelectorAll('.acc')];
-    const sorted = [...cards].sort(
-      (a, b) => (added.has(a.dataset.acc) ? 1 : 0) - (added.has(b.dataset.acc) ? 1 : 0)
-    );
-    if (cards.some((el, i) => el !== sorted[i])) {
-      for (const el of sorted) accList.appendChild(el);
-    }
-  }
+  // Cards hold their place in the row. Added ones used to be re-sorted to the
+  // end, which yanked the card out from under the tap (Eddie, Aug 26 pm: "the
+  // accessories should[n't] leave when tapping them. they should just turn
+  // black") — the black is-added state carries the selection now.
 
   // Quantity
   setText('[data-qty-value]', String(state.quantity));
@@ -710,10 +1120,13 @@ function update(state) {
   }
   setText('[data-summary-total]', formatMoney(state.total, state.currency));
 
-  // Payment mode (Cash / Lease / Finance)
-  const fig = paymentFigures(state.total, state.currency, state.payMode);
+  // Payment mode (Cash / Shop Pay Finance — Eddie, Aug 26 pm). Anything
+  // that isn't 'finance' (including a legacy 'lease' from an old link)
+  // renders as cash.
+  const mode = state.payMode === 'finance' ? 'finance' : 'cash';
+  const fig = paymentFigures(state.total, state.currency, mode);
   for (const el of app.querySelectorAll('[data-pay-mode]')) {
-    el.classList.toggle('is-active', el.dataset.payMode === state.payMode);
+    el.classList.toggle('is-active', el.dataset.payMode === mode);
   }
   setText('[data-pay-figure]', formatMoney(fig.amount, state.currency) + fig.suffix);
   setText('[data-pay-sub]', fig.sub);
@@ -721,6 +1134,15 @@ function update(state) {
   // Footer reflects the selected payment mode
   updateTotal(fig.amount, fig.suffix, state.currency);
   setText('[data-total-label]', fig.label);
+  // Total savings on the sticky bar (obodom, Aug 26: "i think we show the
+  // total savings on the bottom sticky banner?")
+  for (const el of app.querySelectorAll('[data-total-save]')) {
+    el.textContent = state.bundleSavings
+      ? `You save ${formatMoney(state.bundleSavings, state.currency)}`
+      : '';
+    el.hidden = !state.bundleSavings;
+  }
+
   const cta = app.querySelector('[data-cta]');
   if (cta) cta.textContent = state.region === 'row' ? 'Register interest' : 'Order';
 }
@@ -804,6 +1226,10 @@ function crossfadeHero(src, key) {
     showing.style.opacity = 0;
   }
 }
+
+// (A scroll-linked hero "tray" was tried here for the Aug 26 team review and
+// removed the same day — Eddie: "this scroll thing is a little bit janky...
+// we should probably just get rid of it.")
 
 function initReveals() {
   if (!gsap || !window.ScrollTrigger) return;

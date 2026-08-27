@@ -1,17 +1,19 @@
-/* Tesla-configurator-inspired mobile page for Olto.
-   IM brand take on the Tesla layout: pinned hero, content sheet that scrolls
-   over it, circular swatches, sticky order bar. Tokens follow the IM style
-   guide (marketing track): Helvetica Now, black on white, flat, IM green as
-   signature accent only. Fonts load from the same Webflow CDN the live site
-   serves them from. */
+/* Infinite configurator page for Olto.
+   Pinned hero, content sheet that scrolls over it, circular swatches, sticky
+   order bar. Tokens follow the IM style guide (marketing track): Helvetica
+   Now, black on white, flat, IM green as signature accent only. Fonts load
+   from the same Webflow CDN the live site serves them from. */
 
+/* URL-encoded (%20) filenames are required — the CDN 403s the underscore variants of these files. */
 @font-face {
   font-family: 'Helvetica Now Display';
   font-weight: 300;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0265fa647954105d376_Monotype_-_Helvetica_Now_Display_Light.woff')
-    format('woff');
+  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0265fa647954105d376_Monotype%20-%20Helvetica%20Now%20Display%20Light.woff')
+      format('woff'),
+    url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0259578765b978448c5_Monotype%20-%20Helvetica%20Now%20Display%20Light.otf')
+      format('opentype');
 }
 
 @font-face {
@@ -19,7 +21,10 @@
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0254c157c5319ffa5a1_Monotype_-_Helvetica_Now_Display.woff') format('woff');
+  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0254c157c5319ffa5a1_Monotype%20-%20Helvetica%20Now%20Display.woff')
+      format('woff'),
+    url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c025a7f9105a9cfa1831_Monotype%20-%20Helvetica%20Now%20Display.otf')
+      format('opentype');
 }
 
 @font-face {
@@ -27,8 +32,10 @@
   font-weight: 500;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c7aa3569c5fad948926f_Monotype_-_Helvetica_Now_Display_Medium.woff')
-    format('woff');
+  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c7aa3569c5fad948926f_Monotype%20-%20Helvetica%20Now%20Display%20Medium.woff')
+      format('woff'),
+    url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c7aa18240ccee650efe6_Monotype%20-%20Helvetica%20Now%20Display%20Medium.otf')
+      format('opentype');
 }
 
 @font-face {
@@ -36,7 +43,10 @@
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0254089caadd67a3016_Monotype_-_Helvetica_Now_Text.woff') format('woff');
+  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0254089caadd67a3016_Monotype%20-%20Helvetica%20Now%20Text.woff')
+      format('woff'),
+    url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c025cd155be191f437d4_Monotype%20-%20Helvetica%20Now%20Text.otf')
+      format('opentype');
 }
 
 @font-face {
@@ -44,8 +54,10 @@
   font-weight: 500;
   font-style: normal;
   font-display: swap;
-  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0252052ff61342f2a9e_Monotype_-_Helvetica_Now_Text_Medium.woff')
-    format('woff');
+  src: url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c0252052ff61342f2a9e_Monotype%20-%20Helvetica%20Now%20Text%20Medium.woff')
+      format('woff'),
+    url('https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/6685c025846a39a8ec9d9215_Monotype%20-%20Helvetica%20Now%20Text%20Medium.otf')
+      format('opentype');
 }
 
 :root {
@@ -165,7 +177,6 @@ button {
   justify-content: center;
   padding: calc(14px + env(safe-area-inset-top)) 0 14px;
   pointer-events: none;
-  mix-blend-mode: multiply;
 }
 
 /* The vehicle stays pinned — the options sheet scrolls in its own region
@@ -180,7 +191,10 @@ button {
   height: var(--hero-h);
   z-index: 1;
   overflow: hidden;
-  background: #eef0f1;
+  /* White, not the studio grey the product shots are cut out on — on iPhone
+     that grey read as a band across the top before the hero image painted
+     ("Can we remove grey up top", Aug 26). */
+  background: var(--bg);
 }
 
 .hero_img {
@@ -239,19 +253,16 @@ button {
   z-index: 2;
   background: var(--bg);
   border-radius: var(--sheet-radius) var(--sheet-radius) 0 0;
-  padding: 10px var(--pad) 140px;
+  padding: 26px var(--pad) 140px;
   overflow-y: auto;
+  /* The accessories row is the only thing allowed to move sideways in here */
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
 
-.sheet_handle {
-  width: 36px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--line);
-  margin: 6px auto 22px;
-}
+/* (The bottom-sheet drag handle that used to sit here was cut — Eddie,
+   Aug 26 pm: "this top gray bar shouldn't be there.") */
 
 /* ---------- Intro ---------- */
 
@@ -283,31 +294,19 @@ button {
   color: var(--ink);
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin-top: 26px;
-}
-
-.stats_value {
-  font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-}
-
-.stats_label {
-  margin-top: 3px;
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
-
 /* ---------- Option sections ---------- */
 
 .opt {
   padding: 30px 0;
   border-top: 1px solid var(--line);
+}
+
+/* Color leads the sheet (Eddie, Aug 26 pm — "make sure that the colors are the
+   first thing and there is no gray line in front"): nothing above it to divide
+   it from, on desktop or under the mobile intro block */
+.opt--color {
+  border-top: 0;
+  padding-top: 8px;
 }
 
 .opt_title {
@@ -343,12 +342,20 @@ button {
 
 /* ---------- Swatches ---------- */
 
+/* One row, always — never a horizontal scroller. The row used to switch
+   between nowrap+overflow-x (mobile), wrap (900-1139) and nowrap+overflow-x
+   again (1140+), which is what read as "weird scrolling behavior" (Eddie,
+   Aug 26 pm): at ~1140-1270px the six columns overflow by a few pixels, so
+   the row swallowed trackpad gestures mid-sheet-scroll, and overflow-x:auto
+   computes overflow-y:auto too — clipping the selected swatch's ring. The
+   columns now share whatever width the sheet has instead. */
 .swatches {
   display: flex;
   justify-content: center;
-  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 6px;
   margin-top: 22px;
-  flex-wrap: wrap;
 }
 
 .swatch {
@@ -368,70 +375,83 @@ button {
   box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--ink);
 }
 
-/* Labeled swatch column (consolidated Color row) */
+/* Labeled swatch column (consolidated Color row). The wrap grouping box is
+   gone (team review, Aug 26 — "do we need this bounding box?"); the opt_sub
+   caption above the row carries the wrap-not-paint distinction. */
 
+/* Equal columns that flex with the sheet (flex-basis 0, so six of them split
+   the row evenly) and cap out at the old 62px so a short colour set still
+   sits tight rather than sprawling. */
 .swatch-opt {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 7px;
-  width: 62px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 62px;
 }
 
-/* Vinyl wraps sit in their own light-gray rounded box, visually apart from
-   the bare Silver base (Eddie, Aug 26 — solid, not dashed). The row
-   top-aligns; Silver's margin must equal the box's padding-top so every
-   circle sits on the same horizontal axis. */
-.swatches--labeled {
-  align-items: flex-start;
-}
-
-.swatches--labeled > .swatch-opt {
-  margin-top: 37px; /* keep equal to .swatch-box padding-top */
-}
-
-.swatch-box {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 16px;
-  /* padding-top must equal Silver's margin-top above — same circle axis */
-  padding: 37px 16px 14px;
-  background: var(--chip);
-  border-radius: 18px;
-}
-
-/* Subtle caption naming what the box holds. Absolutely positioned — as a
-   flex item its flex-basis:100% inflated the box's intrinsic width, which
-   stretched it far wider than its swatches (Eddie: "too much padding"). */
-.swatch-box_label {
-  position: absolute;
-  top: 12px;
-  left: 0;
-  right: 0;
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  color: var(--ink-3);
+/* Price wraps under the name (Eddie, Aug 26 pm — "wrap the text, so have
+   the label be under the name"). Ellipsis rather than nowrap-overflow: at
+   phone widths a narrow column would otherwise spill its label over the
+   neighbours. */
+.swatch_name,
+.swatch_sub {
+  max-width: 100%;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .swatch_name {
   font-size: 12.5px;
   font-weight: 500;
-  line-height: 1;
 }
 
 .swatch_sub {
   font-size: 11px;
   color: var(--ink-3);
-  line-height: 1;
   margin-top: -2px;
 }
 
-/* ---------- Bundles (checklist cards, v6.2 style) ---------- */
+/* Phones: smaller circle + type so six columns still clear their labels in a
+   ~350px sheet (team review, Aug 26 — one row, no side-scroll). */
+@media (max-width: 899.98px) {
+  .swatch {
+    width: 40px;
+    height: 40px;
+  }
+
+  .swatch_name {
+    font-size: 11.5px;
+  }
+
+  .swatch_sub {
+    font-size: 10.5px;
+  }
+}
+
+/* Small phones (SE-class): tighten further so "Included" still reads whole. */
+@media (max-width: 380px) {
+  .swatches {
+    gap: 4px;
+  }
+
+  .swatch_name {
+    font-size: 10.5px;
+  }
+
+  .swatch_sub {
+    font-size: 10px;
+  }
+}
+
+/* ---------- Bundles (checklist cards) ----------
+   A side-scrolling thumbnail carousel was tried for the Aug 26 review and
+   rolled back the same day (Eddie: "I like the previous bundle thing
+   better. It's simple."). */
 
 .kit-list {
   display: flex;
@@ -511,16 +531,19 @@ button {
   margin-right: 4px;
 }
 
-/* Item list: plain names, nicely spaced — no checkmarks (Eddie, Aug 26) */
+/* Item list: no checkmarks (Eddie, Aug 26), but plain names separated by bare
+   whitespace ran together — "Water Bottle Holder Bottom Cover" reads as one
+   thing, and the ragged wrap made the gaps look arbitrary ("weird spacing
+   here between accessories", Eddie, Aug 26 pm). Soft chips give each item an
+   edge, so the rhythm is even at any wrap point. */
+/* Plain comma-separated names — no pills (Eddie, Aug 26 pm). Commas ride with
+   the word before them, so a wrap never strands a separator at the start of a
+   line the way flex items + a middot did, and multi-word items still read as
+   separate things (the original "weird spacing" complaint). */
 .kit_items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 18px;
   margin-top: 13px;
-}
-
-.kit_item {
   font-size: 13px;
+  line-height: 1.5;
   color: var(--ink-2);
 }
 
@@ -577,19 +600,65 @@ button {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  /* The card itself adds/removes (infinite.js) */
+  cursor: pointer;
 }
 
+@media (hover: hover) {
+  .acc:hover {
+    border-color: var(--ink-3);
+  }
+}
+
+/* ...except the variant selects, which stay ordinary controls */
+.acc select {
+  cursor: auto;
+}
+
+/* Added = a black outline, and the card holds its place in the row (Eddie,
+   Aug 26 pm: "i just want the black outline. not the fill"). The inset ring
+   doubles the border without shifting the card's box by a pixel. */
 .acc.is-added {
   border-color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--ink);
 }
 
+.acc_media {
+  position: relative;
+}
+
 .acc_img {
+  display: block;
   width: 100%;
   height: 104px;
   border-radius: 10px;
   object-fit: cover;
   background: var(--chip);
+}
+
+/* Instruction-clip trigger — the live configurator's play affordance */
+.acc_play {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+  transition: transform 0.15s ease;
+}
+
+.acc_play svg {
+  width: 20px;
+  height: 20px;
+}
+
+.acc_play:active {
+  transform: scale(0.92);
 }
 
 .acc_info {
@@ -607,6 +676,36 @@ button {
   margin-top: 3px;
   font-size: 12.5px;
   color: var(--ink-2);
+}
+
+/* Product-option selects on a card (helmet size/color — team review, Aug 26) */
+.acc_opts {
+  display: flex;
+  gap: 6px;
+}
+
+.acc_select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.acc_select:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+/* Sub-16px form controls make iOS Safari zoom the page on focus */
+@media (max-width: 899.98px) {
+  .acc_select {
+    font-size: 16px;
+  }
 }
 
 .acc_btn {
@@ -687,6 +786,22 @@ button {
   font-style: italic;
 }
 
+/* Bundle discount reads as money coming off, not another line item */
+.summary_row--save span {
+  color: var(--ink);
+}
+
+/* Bundle savings sit under the label — its own line at every width, so the
+   bar never reflows mid-sentence (obodom, Aug 26: "show the total savings on
+   the bottom sticky banner") */
+.orderbar_savings {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
 .summary_total {
   display: flex;
   justify-content: space-between;
@@ -701,6 +816,22 @@ button {
   margin-top: 10px;
   font-size: 12px;
   color: var(--ink-3);
+}
+
+/* Clear configuration + Talk to a rep, the two quiet actions that close the
+   sheet and the rail (the rep link used to live in the removed pop-up) */
+.config-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-rep {
+  font-size: 13px;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .config-clear {
@@ -792,11 +923,15 @@ button {
   transform: translateY(1px);
 }
 
-/* ---------- Payment (Cash / Lease / Finance) ---------- */
+/* ---------- Payment (Cash / Shop Pay Finance) ----------
+   The three-way Cash/Lease/Finance picker was scratched in the Aug 26 team
+   review; this two-way Cash + Shop Pay Installments toggle replaced it the
+   same day (Eddie: "add financing with shop pay options. so cash and
+   finance"). */
 
 .paytoggle {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   margin-top: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -847,85 +982,11 @@ button {
   margin-inline: auto;
 }
 
-/* ---------- Interest modal ---------- */
-
-/* ---------- Save / rep nudge ---------- */
-
-.nudge {
-  position: fixed;
-  left: 50%;
-  bottom: calc(92px + env(safe-area-inset-bottom));
-  transform: translateX(-50%) translateY(14px);
-  width: calc(100% - 2 * var(--pad));
-  max-width: 420px;
-  padding: 18px;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14);
-  z-index: 45;
-  opacity: 0;
-  transition: opacity 0.45s cubic-bezier(0.215, 0.61, 0.355, 1),
-    transform 0.45s cubic-bezier(0.215, 0.61, 0.355, 1);
-}
-
-.nudge.is-in {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-
-.nudge_close {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  padding: 6px;
-  font-size: 18px;
-  line-height: 1;
-  color: var(--ink-3);
-}
-
-.nudge_title {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.nudge_body {
-  margin-top: 4px;
-  padding-right: 12px;
-  font-size: 13px;
-  color: var(--ink-2);
-}
-
-.nudge_actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.nudge_save {
-  flex: 1;
-  padding: 12px 0;
-  border-radius: 999px;
-  background: var(--ink);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.nudge_rep {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 0;
-  border-radius: 999px;
-  border: 1px solid var(--ink);
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink);
-  text-decoration: none;
-}
+/* ---------- Modals ----------
+   Base overlay shared by the video, interest and save-design dialogs. (Lost
+   with the nudge CSS when the load-time pop-up came out on Aug 26 — without
+   it .modal is a zero-height static box and its contents render into the page
+   flow instead of over it, which is why the accessory clips looked dead.) */
 
 .modal {
   position: fixed;
@@ -985,11 +1046,87 @@ button {
   color: var(--ink-2);
 }
 
+/* ---------- Accessory video ---------- */
+
+.modal--video .modal_backdrop {
+  background: rgba(12, 12, 13, 0.82);
+}
+
+/* The clips are portrait (720x1280 from Bunny), so the player is sized by
+   HEIGHT and takes its width from the clip's own ratio — a fixed-width box
+   letterboxes a phone-shaped video inside a wall of black. */
+.vid {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 2 * var(--pad));
+}
+
+.vid_head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.vid_title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.vid_close {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 22px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.vid_player {
+  display: block;
+  height: min(72vh, 860px);
+  width: auto;
+  max-width: min(880px, calc(100vw - 2 * var(--pad)));
+  border-radius: var(--radius);
+  background: #000;
+}
+
+/* ---------- Interest modal ---------- */
+
 /* ---------- Save-design lead form ---------- */
 
 /* .modal_cta is sized by display:block on <a>; buttons need the width spelled out */
 button.modal_cta {
   width: 100%;
+}
+
+/* Secondary modal action (Download as image) — outlined, not filled */
+.modal_cta--alt {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--ink);
+}
+
+/* First/last side by side (Eddie, Aug 26 pm — "break out first and last
+   name") */
+.saveform_row {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.saveform_row .saveform_field {
+  margin-top: 0;
+  min-width: 0;
 }
 
 .saveform_field {
@@ -1001,12 +1138,10 @@ button.modal_cta {
   background: var(--bg);
   color: var(--ink);
   font-family: inherit;
-  font-size: 15px;
+  /* 16px minimum — anything smaller makes iOS Safari zoom the page when a
+     field focuses (Eddie, Aug 26 pm: "shouldn't zoom in") */
+  font-size: 16px;
   text-align: left; /* the sheet centers text — inputs read left-aligned */
-}
-
-form[data-save-form] .saveform_field:first-of-type {
-  margin-top: 20px;
 }
 
 .saveform_field::placeholder {
@@ -1047,7 +1182,6 @@ form[data-save-form] .saveform_field:first-of-type {
   .sheet {
     border-inline: 1px solid var(--line);
   }
-
 }
 
 /* Squat viewports (desktop windows, landscape phones): cover would crop the
@@ -1066,30 +1200,153 @@ form[data-save-form] .saveform_field:first-of-type {
   }
 }
 
-/* ---------- Wide desktop: three-pane, live-site configurator layout ----------
-   Left spec rail | pinned hero | scrolling options rail (Eddie, Aug 26 —
-   "like the live site on desktop, with the best practices we just designed").
-   Same fixed-positioning scheme as mobile, re-anchored per pane. */
-
-.rail {
-  display: none;
-}
-
-@media (min-width: 1140px) {
+/* ---------- Desktop, two-pane (900–1139px) ----------
+   The old cutover was 1140px, which left "pretty wide" windows on the phone
+   layout (Eddie, Aug 26). From 900px: pinned hero left, options sheet fixed
+   right — the live-site scheme minus the spec rail (its summary/clear
+   controls are duplicated in the sheet's Your Olto section). The ≥1140px
+   three-pane block below layers the rail back on top of this. */
+@media (min-width: 900px) {
   :root {
-    --rail-w: 292px;
-    --sheet-w: 460px;
+    --sheet-w: 420px;
+    /* One inset for both panes' first line, so the INFINITE MACHINE wordmark
+       and the OLTO wordmark start at the same y (Eddie, Aug 26). */
+    --pane-top: 30px;
   }
 
   #app {
     max-width: none;
   }
 
+  .hero {
+    left: 0;
+    right: var(--sheet-w);
+    transform: none;
+    width: auto;
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    border-inline: 0;
+  }
+
+  /* Vehicle 20% smaller in the desktop pane. Shrinking the shared image BOX
+     (not a transform) keeps base + accessory layers pixel-registered and
+     leaves GSAP's crossfade scale free to compose on top. */
+  .hero_img,
+  .hero_layer {
+    top: 10%;
+    left: 10%;
+    width: 80%;
+    height: 80%;
+  }
+
+  /* Compact swatch row so Silver + five wraps fit the sheet in one line.
+     The columns flex (see .swatch-opt) — no overflow-x safety valve here on
+     purpose: a scroll container in the middle of the sheet hijacks trackpad
+     scrolling the moment it overflows by even a pixel. */
+  .swatch {
+    width: 38px;
+    height: 38px;
+  }
+
+  .swatch_name {
+    font-size: 11.5px;
+  }
+
+  .swatch_sub {
+    font-size: 10.5px;
+  }
+
+  /* The wordmark belongs to the vehicle pane, not the whole window — with the
+     sheet pinned right, centring across the full viewport pushed it off-centre
+     over the scooter (Eddie, Aug 26). */
   .topbar {
+    right: var(--sheet-w);
+    padding-top: var(--pane-top);
+  }
+
+  .sheet {
+    top: 0;
+    left: auto;
+    right: 0;
+    transform: none;
+    width: var(--sheet-w);
+    max-width: none;
+    border-radius: 0;
+    border-inline: 0;
+    border-left: 1px solid var(--line);
+    padding-top: var(--pane-top);
+  }
+
+  .orderbar {
+    left: auto;
+    right: 0;
+    transform: none;
+    width: var(--sheet-w);
+    max-width: none;
+    border-left: 1px solid var(--line);
+  }
+
+  /* Modals read as centered dialogs, not bottom sheets */
+  .modal_sheet {
+    bottom: auto;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 440px;
+    border-radius: var(--sheet-radius);
+  }
+}
+
+/* ---------- Wide desktop: the tablet two-pane layout, scaled up ----------
+   Eddie, Aug 26 pm: "i like how it is on tablet ... can we try a version of
+   desktop that is like this." So the 900px tier now carries all the way up —
+   full-height hero on the left, one options column on the right, the OLTO
+   wordmark + delivery + From price leading the sheet — and only the sheet
+   widens as the window grows. The three-pane rail layout is still in the
+   build behind ?layout=rail (see .is-rail below) for side-by-side comparison. */
+
+@media (min-width: 1140px) {
+  :root {
+    --sheet-w: 460px;
+  }
+}
+
+@media (min-width: 1600px) {
+  :root {
+    --sheet-w: 520px;
+  }
+
+  /* Keep the vehicle from ballooning in a very wide pane */
+  .hero_img,
+  .hero_layer {
+    top: 14%;
+    left: 18%;
+    width: 64%;
+    height: 72%;
+  }
+}
+
+/* ---------- Wide desktop, ?layout=rail: three-pane, live-site layout ----------
+   Left spec rail | pinned hero | scrolling options rail (Eddie, Aug 26 —
+   "like the live site on desktop, with the best practices we just designed").
+   Extends the two-pane tier above: the rail appears and the hero re-anchors
+   beside it. */
+
+.rail {
+  display: none;
+}
+
+@media (min-width: 1140px) {
+  #app.is-rail {
+    --rail-w: 292px;
+    --sheet-w: 460px;
+  }
+
+  #app.is-rail .topbar {
     display: none; /* the wordmark lives in the rail */
   }
 
-  .rail {
+  #app.is-rail .rail {
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -1106,39 +1363,39 @@ form[data-save-form] .saveform_field:first-of-type {
 
   /* Configuration fills the leftover rail height: the item list scrolls,
      Total + Clear stay pinned at the rail's foot (like the live site) */
-  .rail_block--config {
+  #app.is-rail .rail_block--config {
     display: flex;
     flex-direction: column;
     flex: 1;
     min-height: 0;
   }
 
-  .rail_block--config .summary {
+  #app.is-rail .rail_block--config .summary {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
   }
 
-  .rail_mark {
+  #app.is-rail .rail_mark {
     color: var(--ink);
   }
 
-  .rail_olto {
+  #app.is-rail .rail_olto {
     margin-top: 10px;
   }
 
-  .rail_olto svg {
+  #app.is-rail .rail_olto svg {
     height: 40px;
     width: auto;
     display: block;
   }
 
-  .rail_facts {
+  #app.is-rail .rail_facts {
     margin-top: 26px;
     border-top: 1px solid var(--line);
   }
 
-  .rail_row {
+  #app.is-rail .rail_row {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1147,32 +1404,32 @@ form[data-save-form] .saveform_field:first-of-type {
     font-size: 13.5px;
   }
 
-  .rail_key {
+  #app.is-rail .rail_key {
     color: var(--ink-2);
   }
 
-  .rail_val {
+  #app.is-rail .rail_val {
     font-weight: 500;
   }
 
-  .rail_val--ship {
+  #app.is-rail .rail_val--ship {
     display: flex;
     align-items: center;
     gap: 7px;
   }
 
-  .rail_dot {
+  #app.is-rail .rail_dot {
     width: 8px;
     height: 8px;
     border-radius: 50%;
     background: var(--green);
   }
 
-  .rail_block {
+  #app.is-rail .rail_block {
     margin-top: 30px;
   }
 
-  .rail_heading {
+  #app.is-rail .rail_heading {
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.08em;
@@ -1182,90 +1439,35 @@ form[data-save-form] .saveform_field:first-of-type {
     border-bottom: 1px solid var(--line);
   }
 
-  .rail_list {
+  #app.is-rail .rail_list {
     list-style: none;
   }
 
-  .rail_list li {
+  #app.is-rail .rail_list li {
     padding: 11px 0;
     border-bottom: 1px solid var(--line);
     font-size: 13.5px;
   }
 
-  .rail_block .summary_total {
+  #app.is-rail .rail_block .summary_total {
     font-size: 13.5px;
   }
 
-  .hero {
+  /* Hero re-anchors beside the rail; everything else is inherited from the
+     two-pane tier above. */
+  #app.is-rail .hero {
     left: var(--rail-w);
-    right: var(--sheet-w);
-    transform: none;
-    width: auto;
-    max-width: none;
-    height: 100vh;
-    height: 100dvh;
-    border-inline: 0;
-  }
-
-  .sheet {
-    top: 0;
-    left: auto;
-    right: 0;
-    transform: none;
-    width: var(--sheet-w);
-    max-width: none;
-    border-radius: 0;
-    border-inline: 0;
-    border-left: 1px solid var(--line);
-    padding-top: 30px;
-  }
-
-  .sheet_handle {
-    display: none;
   }
 
   /* The rail carries the wordmark, price anchor and delivery — the sheet
-     opens straight into stats + options */
-  .intro_title,
-  .intro_delivery,
-  .intro_price {
+     opens straight into Payment (hide the whole block, not just its children:
+     an empty intro left a dead 34px band above the first section) */
+  #app.is-rail .intro {
     display: none;
   }
 
   /* ...and the configuration summary */
-  .opt--summary {
+  #app.is-rail .opt--summary {
     display: none;
-  }
-
-  .orderbar {
-    left: auto;
-    right: 0;
-    transform: none;
-    width: var(--sheet-w);
-    max-width: none;
-    border-left: 1px solid var(--line);
-  }
-
-  .nudge,
-  .nudge.is-in {
-    left: auto;
-    right: calc(var(--sheet-w) + 24px);
-  }
-
-  .nudge {
-    transform: translateY(14px);
-  }
-
-  .nudge.is-in {
-    transform: translateY(0);
-  }
-
-  /* Modals read as centered dialogs, not bottom sheets */
-  .modal_sheet {
-    bottom: auto;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    max-width: 440px;
-    border-radius: var(--sheet-radius);
   }
 }

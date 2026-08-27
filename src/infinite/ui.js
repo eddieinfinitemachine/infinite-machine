@@ -1,5 +1,6 @@
-// Pure HTML builders for the Tesla-style page. No state, no listeners —
-// tesla.js renders this once, then mutates the dynamic bits in update().
+// Pure HTML builders for the Infinite configurator page. No state, no
+// listeners — infinite.js renders this once, then mutates the dynamic bits
+// in update().
 
 // Official IM wordmark (from ~/Code/active/im-creative-library/public/im-wordmark.svg),
 // inlined with currentColor so it inherits text color.
@@ -38,40 +39,31 @@ export const ACCESSORY_LAYERS = {
   'olto-soft-bag': `${LAYER_CDN}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`,
 };
 
-// Payment plans — Tesla-style Cash / Lease / Finance toggle.
-// Finance mirrors the ClarityPay Tier 1 48-month offer (15.99% APR w/ AutoPay,
-// proposal dated 2026-08-21); no financing is live on the store yet, so figures
-// remain estimates. Lease is still ILLUSTRATIVE — no lease program exists.
+// Payment: Cash or Shop Pay Installments (Eddie, Aug 26 pm — "add financing
+// with shop pay options. so cash and finance"). Lease is parked entirely.
+// The finance anchor is the as-low-as Shop Pay figure; real terms come from
+// Shop Pay at checkout.
+// TODO(eddie): 24 months is your call (Aug 26 pm, "for shop pay default to 24
+// months") — Shop Pay Installments' US monthly plans are 3/6/12, so a 24-month
+// anchor won't be matched at checkout unless the store is on a longer-term
+// financing program. Flip to 12 here if it should mirror Shop Pay exactly.
 export const PAYMENT_PLANS = {
-  finance: { months: 48, apr: 0.1599 },
-  lease: { months: 24, residualPct: 0.35 },
+  finance: { months: 24 },
 };
 
 // What the order bar + Payment section show for a given mode.
 export function paymentFigures(total, currency, mode) {
   if (mode === 'finance') {
-    const { months, apr } = PAYMENT_PLANS.finance;
-    const r = apr / 12;
-    const monthly = r > 0 ? (total * r) / (1 - (1 + r) ** -months) : total / months;
+    const { months } = PAYMENT_PLANS.finance;
+    const monthly = total / months;
     return {
       amount: monthly,
       suffix: '/mo',
-      label: 'Est. finance payment',
-      sub: `${months} monthly payments of ${formatMoney(monthly, currency)} at ${(
-        apr * 100
-      ).toFixed(2)}% APR. Estimate for illustration — payment options appear at checkout.`,
-    };
-  }
-  if (mode === 'lease') {
-    const { months, residualPct } = PAYMENT_PLANS.lease;
-    const monthly = (total * (1 - residualPct)) / months;
-    return {
-      amount: monthly,
-      suffix: '/mo',
-      label: 'Est. lease payment',
-      sub: `${months}-month term, ${Math.round(
-        residualPct * 100
-      )}% residual. Estimate for illustration.`,
+      label: 'As low as, with Shop Pay',
+      sub: `As low as ${formatMoney(
+        monthly,
+        currency
+      )}/mo with Shop Pay Installments — ${months} monthly payments for eligible buyers (rates 0–36.99% APR). Exact plans and terms appear at checkout.`,
     };
   }
   return {
@@ -88,8 +80,13 @@ export function paymentFigures(total, currency, mode) {
 // value minus the tier price. NOTE: the demo cart still charges full
 // per-item prices — real bundle pricing needs Shopify discounts/bundle
 // products before go-live.
-// TODO(eddie): Cargo/Max tier prices are placeholders — confirm. The meeting
-// also wanted the cover in bundles; no sellable cover product exists yet.
+// Tier prices repriced per the team review (Aug 26): savings must GROW with
+// tier — the old 700/950 made Commuter save more than Max. With these,
+// Commuter saves ~$275, Cargo ~$320, Max ~$416 (value is summed at runtime).
+// TODO(eddie): confirm Cargo/Max prices — obodom asked for bigger savings on
+// bigger bundles; exact figures are a pricing call.
+// Helmet pulled from Commuter (obodom, Aug 26): upsell it in person instead —
+// the remaining ~$475 of inventory at +$200 matches his "+400 at +200" target.
 export const KITS = [
   {
     key: 'commuter',
@@ -102,7 +99,6 @@ export const KITS = [
       'olto-charging-dock',
       'olto-phone-mount',
       'olto-water-bottle-holder',
-      'open-face-helmet',
       'bottom-cover',
     ],
   },
@@ -110,7 +106,7 @@ export const KITS = [
     key: 'cargo',
     label: 'Olto Cargo',
     tagline: 'Carry everything.',
-    price: 700,
+    price: 600,
     items: [
       'olto-sidewalls',
       'olto-charging-dock',
@@ -128,7 +124,7 @@ export const KITS = [
     key: 'max',
     label: 'Olto Max',
     tagline: 'Fully loaded. Full power.',
-    price: 950,
+    price: 780,
     items: [
       'olto-sidewalls',
       'olto-charging-dock',
@@ -149,15 +145,23 @@ export const KITS = [
 // Bundle-only products (no photography) stay out of the Accessories row
 const ROW_HIDDEN = new Set(['bottom-cover']);
 
-// TODO(eddie): confirm spec figures for the stat row
-const STATS = [
-  { value: '40 mi', label: 'Range (est.)' },
-  { value: '20 mph', label: 'Top Speed' },
-  { value: 'Class 2', label: 'E-bike' },
-];
+// Play badge for accessories that carry an instruction clip — same feature as
+// the live configurator's Bunny lightbox (modules/accessory-video.js), which
+// this page had been missing ("put back the videos that are in the current
+// configurator" — Eddie, Aug 26 pm).
+const PLAY_ICON = `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 7.5v9l7.5-4.5z" fill="currentColor"/></svg>`;
+
+// Display-only renames where the Shopify title is stale — the handle is still
+// what the cart and the bundle definitions use. ("bottom cover is Outdoor
+// Cover" — Eddie, Aug 26 pm.)
+const TITLE_OVERRIDES = new Map([['bottom-cover', 'Outdoor Cover']]);
+
+export function productTitle(handle, fallback) {
+  return TITLE_OVERRIDES.get(handle) || fallback || handle;
+}
 
 // Adapted from modules/price-display.js formatMoney — cents shown only when
-// they exist (Tesla-style "$3,495", not "$3,495.00").
+// they exist ("$3,495", not "$3,495.00").
 export function formatMoney(amount, currencyCode = 'USD') {
   const n = Number(amount) || 0;
   const digits = n % 1 === 0 ? 0 : 2;
@@ -188,9 +192,6 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
   // dollars. Deliberately NOT live: the sticky order bar is the single live
   // figure for the configured build.
   const basePrice = Math.min(...products.main.variants.map((v) => parseFloat(v.price.amount)));
-  const { months, apr } = PAYMENT_PLANS.finance;
-  const monthlyRate = apr / 12;
-  const monthlyFrom = Math.round((basePrice * monthlyRate) / (1 - (1 + monthlyRate) ** -months));
 
   return `
     <header class="topbar">
@@ -231,7 +232,18 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <span>Total</span>
           <span data-summary-total></span>
         </div>
-        <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
+        <div class="config-actions">
+          <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
+          <!-- Opens IM's Intercom messenger in-page (infinite.js); the href is
+               the fallback for a blocked/failed widget. -->
+          <a
+            class="config-rep"
+            data-rep-chat
+            href="https://www.infinitemachine.com/contact"
+            target="_blank"
+            rel="noopener"
+          >Talk to a rep</a>
+        </div>
       </div>
     </aside>
 
@@ -253,24 +265,14 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
     </section>
 
     <main class="sheet">
-      <div class="sheet_handle" aria-hidden="true"></div>
-
       <section class="intro">
         <h1 class="intro_title">${OLTO_WORDMARK_SVG}</h1>
         <p class="intro_delivery" data-delivery></p>
-        <p class="intro_price">From ${formatMoney(basePrice)} · or ${formatMoney(
-    monthlyFrom
-  )}/mo financing</p>
-        <div class="stats">
-          ${STATS.map(
-            (s) => `
-            <div class="stats_item">
-              <div class="stats_value">${esc(s.value)}</div>
-              <div class="stats_label">${esc(s.label)}</div>
-            </div>`
-          ).join('')}
-        </div>
+        <p class="intro_price">From ${formatMoney(basePrice)}</p>
       </section>
+
+      <!-- Spec stats were cut from the config funnel (team review, Aug 26 —
+           "not useful info at the config funnel step"). -->
 
       ${buildColorSection(config, variants, wrapVariantsByColor)}
 
@@ -299,11 +301,16 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
         </div>
       </section>
 
+      <!-- Cash / Shop Pay Installments (Eddie, Aug 26 pm) — the two-way picker
+           replaces the scratched three-way Cash/Lease/Finance one. It was tried
+           at the top of the sheet and folded into the order bar; both were
+           rolled back ("i dont like the payment options on mobile. lets go back
+           to the way it was before"), so it is a section again, after the build
+           is configured. -->
       <section class="opt" data-section="payment">
         <h2 class="opt_title">Payment</h2>
         <div class="paytoggle">
           <button type="button" class="paytoggle_btn" data-pay-mode="cash">Cash</button>
-          <button type="button" class="paytoggle_btn" data-pay-mode="lease">Lease</button>
           <button type="button" class="paytoggle_btn" data-pay-mode="finance">Finance</button>
         </div>
         <div class="pay_meta">
@@ -320,14 +327,28 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <span data-summary-total></span>
         </div>
         <p class="summary_note">Taxes and shipping calculated at checkout</p>
-        <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
+        <div class="config-actions">
+          <button type="button" class="config-clear" data-config-reset>Clear configuration</button>
+          <!-- Opens IM's Intercom messenger in-page (infinite.js); the href is
+               the fallback for a blocked/failed widget. -->
+          <a
+            class="config-rep"
+            data-rep-chat
+            href="https://www.infinitemachine.com/contact"
+            target="_blank"
+            rel="noopener"
+          >Talk to a rep</a>
+        </div>
       </section>
     </main>
 
     <footer class="orderbar">
       <div class="orderbar_total">
         <div class="orderbar_amount" data-total>&nbsp;</div>
-        <div class="orderbar_label" data-total-label>Est. purchase price</div>
+        <div class="orderbar_meta">
+          <span class="orderbar_label" data-total-label>Est. purchase price</span>
+          <span class="orderbar_savings" data-total-save hidden></span>
+        </div>
       </div>
       <div class="orderbar_actions">
         <button type="button" class="orderbar_save" data-save>Save</button>
@@ -335,24 +356,18 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
       </div>
     </footer>
 
-    <aside class="nudge" data-nudge hidden>
-      <button type="button" class="nudge_close" data-nudge-close aria-label="Dismiss">&times;</button>
-      <p class="nudge_title">Don&rsquo;t lose your design</p>
-      <p class="nudge_body">Save it to share or finish later &mdash; or talk it through with an IM rep.</p>
-      <div class="nudge_actions">
-        <button type="button" class="nudge_save" data-save>
-          Save my design
-        </button>
-        <a
-          class="nudge_rep"
-          href="https://www.infinitemachine.com/contact"
-          target="_blank"
-          rel="noopener"
-        >
-          Talk to a rep
-        </a>
+    <!-- Accessory instruction clip (Bunny HLS), same source the live
+         configurator plays — modules/accessory-video.js -->
+    <div class="modal modal--video" data-video-modal hidden>
+      <div class="modal_backdrop" data-video-close></div>
+      <div class="vid">
+        <div class="vid_head">
+          <h3 class="vid_title" data-video-title></h3>
+          <button type="button" class="vid_close" data-video-close aria-label="Close video">&times;</button>
+        </div>
+        <video class="vid_player" data-video-el playsinline controls preload="none"></video>
       </div>
-    </aside>
+    </div>
 
     <div class="modal" data-interest hidden>
       <div class="modal_backdrop" data-interest-close></div>
@@ -378,7 +393,10 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
             We&rsquo;ll copy a link that rebuilds this exact Olto &mdash; share it or pick
             up where you left off on any device.
           </p>
-          <input class="saveform_field" type="text" name="name" placeholder="Name" autocomplete="name" />
+          <div class="saveform_row">
+            <input class="saveform_field" type="text" name="first_name" placeholder="First name" autocomplete="given-name" />
+            <input class="saveform_field" type="text" name="last_name" placeholder="Last name" autocomplete="family-name" />
+          </div>
           <input class="saveform_field" type="email" name="email" placeholder="Email" autocomplete="email" inputmode="email" />
           <input class="saveform_field" type="tel" name="phone" placeholder="Phone" autocomplete="tel" inputmode="tel" />
           <p class="saveform_error" data-save-error hidden></p>
@@ -389,6 +407,10 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
           <h3 class="modal_title">Design saved</h3>
           <p class="modal_body" data-save-done-msg>Link copied to your clipboard.</p>
           <p class="savedone_link" data-save-link></p>
+          <button type="button" class="modal_cta modal_cta--alt" data-save-image>
+            Download as image
+          </button>
+          <p class="saveform_error" data-save-image-note hidden></p>
           <button type="button" class="modal_cta" data-save-close>Done</button>
         </div>
       </div>
@@ -399,8 +421,13 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
 
 // One consolidated Color section (Aug 26 meeting): Silver anodized is the
 // only base finish; every other color — Black included — is a vinyl wrap
-// variant of the wrap product. The sub-line is the "it's a wrap, not paint"
-// distinction Eddie asked for.
+// variant of the wrap product. The sub-line carries the "it's a wrap, not
+// paint" distinction; the box that used to group the wraps is gone (team
+// review, Aug 26 — "do we need this bounding box?"). One ROW of swatches,
+// with the price wrapped UNDER each name (Eddie, Aug 26 pm: "simpler one
+// row... wrap the text, so have the label be under the name"). Silver's old
+// "Ships now" caption read as a contradiction of the August ship date
+// ("shipping now?") — it now just says Included.
 function buildColorSection(config, variants, wrapVariantsByColor) {
   const silverMeta = variants.find(([, m]) => /silver/i.test(m.color))?.[1];
   const blackMeta = variants.find(([, m]) => /black/i.test(m.color))?.[1];
@@ -409,7 +436,7 @@ function buildColorSection(config, variants, wrapVariantsByColor) {
     wrapVariantsByColor.has(c)
   );
   return `
-    <section class="opt" data-section="color">
+    <section class="opt opt--color" data-section="color">
       <h2 class="opt_title">Color</h2>
       <p class="opt_sub">Silver anodized finish. Vinyl wrap on top of the aluminum.</p>
       <div class="swatches swatches--labeled">
@@ -422,33 +449,33 @@ function buildColorSection(config, variants, wrapVariantsByColor) {
             aria-label="Silver"
           ></button>
           <div class="swatch_name">Silver</div>
-          <div class="swatch_sub">Ships now</div>
+          <div class="swatch_sub">Included</div>
         </div>
-        <div class="swatch-box">
-          <div class="swatch-box_label">Vinyl wrap</div>
-          ${wrapOrder
-            .map((color) => {
-              const price = parseFloat(wrapVariantsByColor.get(color).price.amount);
-              return `
-          <div class="swatch-opt">
-            <button
-              type="button"
-              class="swatch"
-              data-color-swatch="${esc(color)}"
-              style="--swatch: ${esc(hexes[color])}"
-              aria-label="${esc(color)} vinyl wrap"
-            ></button>
-            <div class="swatch_name">${esc(color)}</div>
-            <div class="swatch_sub">+${formatMoney(price)}</div>
-          </div>`;
-            })
-            .join('')}
-        </div>
+        ${wrapOrder
+          .map((color) => {
+            const price = parseFloat(wrapVariantsByColor.get(color).price.amount);
+            return `
+        <div class="swatch-opt">
+          <button
+            type="button"
+            class="swatch"
+            data-color-swatch="${esc(color)}"
+            style="--swatch: ${esc(hexes[color])}"
+            aria-label="${esc(color)} vinyl wrap"
+          ></button>
+          <div class="swatch_name">${esc(color)}</div>
+          <div class="swatch_sub">+${formatMoney(price)}</div>
+        </div>`;
+          })
+          .join('')}
       </div>
     </section>
   `;
 }
 
+// Bundles: stacked full-width checklist cards. A side-scrolling carousel
+// with item thumbs was tried for the Aug 26 team review and rolled back the
+// same day — Eddie: "I like the previous bundle thing better. It's simple."
 function buildKitsSection(products) {
   return `
     <section class="opt" data-section="bundles">
@@ -468,7 +495,7 @@ function buildKitCard(kit, products) {
   const save = value - kit.price;
   const names = kit.items.map((h) => {
     const p = products.accessories.find((a) => a.handle === h);
-    return (p?.title || h).replace(/^Olto /, '');
+    return productTitle(h, p?.title).replace(/^Olto /, '');
   });
   const pricing = kit.items.length
     ? `<div class="kit_price">+${formatMoney(kit.price)}</div>
@@ -488,25 +515,61 @@ function buildKitCard(kit, products) {
         </div>
         <div class="kit_pricing">${pricing}</div>
       </div>
-      ${
-        names.length
-          ? `<div class="kit_items">${names
-              .map((n) => `<span class="kit_item">${esc(n)}</span>`)
-              .join('')}</div>`
-          : ''
-      }
+      ${names.length ? `<p class="kit_items">${names.map((n) => esc(n)).join(', ')}</p>` : ''}
     </button>
   `;
+}
+
+// Real product options (helmet: size + color — team review, Aug 26, "helmet
+// should let you choose size and color when you select"), derived from the
+// variants' selectedOptions. The degenerate Title/"Default Title" pair means
+// the product has no options.
+export function productOptions(product) {
+  const opts = new Map(); // name -> ordered unique values
+  for (const v of product?.variants || []) {
+    for (const o of v.selectedOptions || []) {
+      if (o.name === 'Title' && o.value === 'Default Title') continue;
+      if (!opts.has(o.name)) opts.set(o.name, []);
+      const values = opts.get(o.name);
+      if (!values.includes(o.value)) values.push(o.value);
+    }
+  }
+  return [...opts.entries()];
+}
+
+// Variant whose selectedOptions agree with every chosen value; sellable
+// variants win ties. Falls back to null so callers can use firstVariant.
+export function variantForOptions(product, selections) {
+  const matches = (product?.variants || []).filter((v) =>
+    (v.selectedOptions || []).every(
+      (o) => selections[o.name] == null || selections[o.name] === o.value
+    )
+  );
+  return matches.find((v) => v.availableForSale) || matches[0] || null;
 }
 
 function buildAccessoryCard(p) {
   const v = firstVariant(p);
   if (!v) return '';
+  const options = p.variants.length > 1 ? productOptions(p) : [];
+  const defaults = new Map((v.selectedOptions || []).map((o) => [o.name, o.value]));
   return `
     <div class="acc" data-acc="${esc(p.handle)}">
-      <img class="acc_img" src="${esc(imgUrl(p.featuredImage?.url, 240))}" alt="${esc(
+      <div class="acc_media">
+        <img class="acc_img" src="${esc(imgUrl(p.featuredImage?.url, 240))}" alt="${esc(
     p.title
   )}" loading="lazy" />
+        ${
+          p.instructionVideo
+            ? `<button
+                type="button"
+                class="acc_play"
+                data-acc-play="${esc(p.handle)}"
+                aria-label="Watch the ${esc(p.title)} video"
+              >${PLAY_ICON}</button>`
+            : ''
+        }
+      </div>
       <div class="acc_info">
         <div class="acc_name">${esc(p.title)}</div>
         <div class="acc_price">${formatMoney(
@@ -514,6 +577,27 @@ function buildAccessoryCard(p) {
           v.price.currencyCode
         )}</div>
       </div>
+      ${
+        options.length
+          ? `<div class="acc_opts">${options
+              .map(
+                ([name, values]) => `
+        <select class="acc_select" data-acc-option="${esc(name)}" aria-label="${esc(p.title)} ${esc(
+                  name
+                )}">
+          ${values
+            .map(
+              (val) =>
+                `<option value="${esc(val)}"${defaults.get(name) === val ? ' selected' : ''}>${esc(
+                  val
+                )}</option>`
+            )
+            .join('')}
+        </select>`
+              )
+              .join('')}</div>`
+          : ''
+      }
       <button type="button" class="acc_btn" data-acc-toggle="${esc(p.handle)}">Add</button>
     </div>
   `;
@@ -541,8 +625,16 @@ export function buildSummaryRows(state, config) {
   }
   for (const l of state.accessoryLines) {
     rows.push({
-      label: esc(l.merchandise.product.title),
+      label: esc(productTitle(l.merchandise.product.handle, l.merchandise.product.title)),
       amount: parseFloat(l.merchandise.price.amount),
+    });
+  }
+  if (state.bundleSavings > 0) {
+    const kit = KITS.find((k) => k.key === state.activeBundle);
+    rows.push({
+      label: `${esc(kit?.label || 'Bundle')} discount`,
+      amount: -state.bundleSavings / (state.quantity || 1),
+      isSaving: true,
     });
   }
   const qtyNote =
@@ -553,9 +645,12 @@ export function buildSummaryRows(state, config) {
     rows
       .map(
         (r) => `
-      <div class="summary_row">
+      <div class="summary_row${r.isSaving ? ' summary_row--save' : ''}">
         <span>${r.label}</span>
-        <span>${formatMoney(r.amount, state.currency)}</span>
+        <span>${r.isSaving ? '&minus;' : ''}${formatMoney(
+          Math.abs(r.amount),
+          state.currency
+        )}</span>
       </div>`
       )
       .join('') + qtyNote

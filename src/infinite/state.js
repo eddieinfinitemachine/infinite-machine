@@ -1,4 +1,4 @@
-// Derived-state store for the Tesla-style page.
+// Derived-state store for the Infinite configurator page.
 //
 // The cart (lib/cart.js) is the single source of truth — every selection the
 // user makes becomes a cart line tagged with the current `_config_id`. This
@@ -23,10 +23,11 @@ const state = {
   wrapLine: null,
   accessoryLines: [],
   activeBundle: null, // bundle handle when session accessories exactly match a bundle
+  bundleSavings: 0, // item value minus the matched bundle's tier price
   quantity: 1,
   total: 0,
   currency: 'USD',
-  payMode: 'finance', // 'cash' | 'lease' | 'finance' — finance ($99/mo anchor) is the default view
+  payMode: 'cash', // 'cash' | 'lease' | 'finance' — picker scratched (team review, Aug 26); cash is the view
   cart: null,
 };
 
@@ -98,12 +99,14 @@ function recompute(cart) {
     total += parseFloat(l.merchandise.price.amount) * (l.quantity || 1);
     if (l.merchandise.price.currencyCode) state.currency = l.merchandise.price.currencyCode;
   }
-  state.total = total;
 
   // Active bundle = session accessory set exactly matches a bundle's product
-  // set (same rule as lib/selection.js).
+  // set (same rule as lib/selection.js). Because the test is on the SET, an
+  // accessory that is removed and re-added lands back in the bundle and the
+  // discount comes back with it (obodom, Aug 26).
   const selected = new Set(state.accessoryLines.map((l) => l.merchandise.product.handle));
   state.activeBundle = null;
+  let activeKit = null;
   for (const b of bundles) {
     const members = (b.products || []).map((p) => p.handle);
     if (
@@ -112,9 +115,30 @@ function recompute(cart) {
       members.every((h) => selected.has(h))
     ) {
       state.activeBundle = b.handle;
+      activeKit = b;
       break;
     }
   }
+
+  // Bundle pricing: the tier price REPLACES the summed item prices, so a
+  // matched bundle bills base + tier, not base + every accessory (obodom,
+  // Aug 26: "3500 + 600 should = 4100, but it says 4415").
+  // TODO(eddie): display-only for now — the Shopify cart still holds
+  // full-price lines, so checkout will show the undiscounted number until the
+  // tiers exist as automatic discounts or bundle products in the store.
+  state.bundleSavings = 0;
+  if (activeKit && typeof activeKit.price === 'number') {
+    const itemsPerSet = state.accessoryLines.reduce(
+      (sum, l) => sum + parseFloat(l.merchandise.price.amount),
+      0
+    );
+    const savedPerSet = itemsPerSet - activeKit.price;
+    if (savedPerSet > 0) {
+      state.bundleSavings = savedPerSet * state.quantity;
+      total -= state.bundleSavings;
+    }
+  }
+  state.total = total;
 
   state.ready = true;
   emit();
