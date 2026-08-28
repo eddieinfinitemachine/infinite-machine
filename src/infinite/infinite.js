@@ -163,6 +163,23 @@ export async function mount(root) {
     // The configurator always carries a bike line so the total is honest from
     // first paint (upstream adds it on variant selection).
     setLineForProduct(products.main.handle, gidForVariant(config.defaultVariantId));
+  } else if (numericId(getState().bikeLine.merchandise.id) !== String(config.defaultVariantId)) {
+    // A cart restored from before the cutover can hold a base this UI does not
+    // sell — carts persist in localStorage for months, and the old configurator
+    // sold a Black BASE that is now out of stock and offered only as a wrap.
+    // Left alone it renders as "Olto - Black", cannot be changed (the colour row
+    // only sets wraps), and checks out as an unfulfillable bike (Joseph, Aug 28:
+    // "it defaulted to black when i clicked order on pdp"; clearing cookies does
+    // not help because the cart id is in localStorage).
+    //
+    // Correct the base and keep everything else: the wrap and accessories are
+    // still sellable, so a returning visitor keeps their build.
+    console.warn(
+      '[Olto] Restored cart had base variant ' +
+        `${numericId(getState().bikeLine.merchandise.id)}; this UI sells ` +
+        `${config.defaultVariantId}. Migrating the bike line.`
+    );
+    setLineForProduct(products.main.handle, gidForVariant(config.defaultVariantId));
   }
 
   detectRegion();

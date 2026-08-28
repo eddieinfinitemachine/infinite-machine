@@ -134,6 +134,18 @@
 
 /* The adopted Webflow form arrives wearing Webflow's own form classes.
    Confined to the slot so it cannot outrank the fallback form's classes. */
+/* The production form carries its own heading block INSIDE the <form>, so it
+   travels with the adopt-move: "Register Your Interest / We're not yet accepting
+   orders in your country...". That was contextual on the old page; here it shows
+   to everyone, including US buyers who are simply saving a design (Joseph,
+   Aug 28). The modal supplies its own title and copy per region via
+   [data-save-title] / [data-save-copy], so the form's copy is redundant as well
+   as wrong. Hidden rather than removed: it belongs to the Webflow form and must
+   survive a rollback untouched. */
+:where(.olto-cfg) [data-wf-form-slot] .modal_info-interest-note {
+  display: none;
+}
+
 :where(.olto-cfg) .w-form {
   margin: 0;
 }
