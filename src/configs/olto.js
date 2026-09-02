@@ -91,13 +91,6 @@ export default {
   // (Wired up by modules/custom-images.js — added in Phase 1d)
   customImageRules: [
     {
-      when: ['olto-soft-bag', 'olto-rear-basket'],
-      replace: {
-        'olto-soft-bag':
-          'https://cdn.prod.website-files.com/66856cd71d6df6db1cada051/69219c3d619077ba6f1689ed_Soft%20Bag%20in%20Rear%20Basket.avif',
-      },
-    },
-    {
       when: ['olto-charging-dock', 'olto-battery'],
       replace: {
         'olto-battery':

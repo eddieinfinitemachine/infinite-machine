@@ -7,10 +7,6 @@ import { findProductByHandle } from '../lib/products.js';
 //
 //   customImageRules: [
 //     {
-//       when: ['olto-soft-bag', 'olto-rear-basket'],
-//       replace: { 'olto-soft-bag': '<bag-in-basket-url>' },
-//     },
-//     {
 //       when: ['olto-charging-dock', 'olto-battery'],
 //       replace: { 'olto-battery': '<plugged-url>' },
 //       hide: ['olto-charging-dock'],

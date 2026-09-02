@@ -41,7 +41,6 @@ export const ACCESSORY_LAYERS = {
   'olto-u-lock-mount': `${LAYER_CDN}/68d53cf8bb965a6129e84ff4_olto-u-lock-mount.avif`,
   'open-face-helmet': `${LAYER_CDN}/6921a8f20583ec71e2663dce_Black%20Open%20Face%20Helmet.avif`,
   'kryptonite-lock': `${LAYER_CDN}/68d53fc0d2d8d2d151493b5f_kryptonite-lock.avif`,
-  'olto-soft-bag': `${LAYER_CDN}/692197c1914921de9b30217a_Soft%20Bag%20on%20the%20Ground.avif`,
 };
 
 /**
@@ -156,7 +155,11 @@ export const KITS = [
     key: 'cargo',
     label: 'Olto Cargo',
     tagline: 'Carry everything.',
-    price: 600,
+    // 500, not 600: the Olto Soft Bag ($98) came out of this kit on 2026-09-02
+    // (discontinued). Dropping the tier by $100 keeps the saving at $322 —
+    // two dollars BETTER than the $320 it was — so removing an item cannot
+    // quietly make the bundle worse value.
+    price: 500,
     items: [
       'olto-sidewalls',
       'olto-charging-dock',
@@ -164,7 +167,6 @@ export const KITS = [
       'charger-bag',
       'olto-rear-rack',
       'olto-rear-basket',
-      'olto-soft-bag',
       'olto-side-mounting-plate',
       'accessory-plate',
       'olto-center-stand',
@@ -174,7 +176,8 @@ export const KITS = [
     key: 'max',
     label: 'Olto Max',
     tagline: 'Fully loaded. Full power.',
-    price: 780,
+    // 680 for the same reason as Cargo above: saving goes 416 -> 418.
+    price: 680,
     items: [
       'olto-sidewalls',
       'olto-charging-dock',
@@ -183,7 +186,6 @@ export const KITS = [
       'charger-bag',
       'olto-rear-rack',
       'olto-rear-basket',
-      'olto-soft-bag',
       'olto-side-mounting-plate',
       'accessory-plate',
       'olto-center-stand',

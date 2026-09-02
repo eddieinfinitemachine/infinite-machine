@@ -34,7 +34,6 @@ const P = {
   chargerBag: "gid://shopify/Product/8437574729884",
   rearRack: "gid://shopify/Product/8437557264540",
   rearBasket: "gid://shopify/Product/8437562900636",
-  softBag: "gid://shopify/Product/8447071944860",
   sideMountingPlate: "gid://shopify/Product/8437592129692",
   accessoryPlate: "gid://shopify/Product/8437552840860",
   centerStand: "gid://shopify/Product/8437571223708",
@@ -44,15 +43,23 @@ const P = {
 const COMMUTER = [P.sidewalls, P.chargingDock, P.phoneMount, P.waterBottle, P.bottomCover];
 const CARGO = [
   P.sidewalls, P.chargingDock, P.phoneMount, P.chargerBag, P.rearRack,
-  P.rearBasket, P.softBag, P.sideMountingPlate, P.accessoryPlate, P.centerStand,
+  P.rearBasket, P.sideMountingPlate, P.accessoryPlate, P.centerStand,
 ];
 const MAX = [...CARGO, P.waterBottle, P.superCharger];
 
 // Largest tier first — see the ordering note above.
+// amount = (sum of the tier's component retail prices) - (the tier price shown
+// on the page, KITS[].price in src/infinite/ui.js). bin/print-bundle-discounts.mjs
+// recomputes both sides and fails loudly when they drift.
+//
+// 2026-09-02: Soft Bag ($98) removed from Cargo and Max (discontinued), tiers
+// dropped $100 each, so Cargo 320 -> 322 and Max 416 -> 418. Commuter's 126 was
+// simply WRONG — components $302 - tier $200 = $102, and it had been paying out
+// $24 too much on every Commuter cart. Corrected in the same pass.
 const TIERS = [
-  { title: "Olto Max bundle", products: MAX, amount: "416.00" },
-  { title: "Olto Cargo bundle", products: CARGO, amount: "320.00" },
-  { title: "Olto Commuter bundle", products: COMMUTER, amount: "126.00" },
+  { title: "Olto Max bundle", products: MAX, amount: "418.00" },
+  { title: "Olto Cargo bundle", products: CARGO, amount: "322.00" },
+  { title: "Olto Commuter bundle", products: COMMUTER, amount: "102.00" },
 ];
 
 /** @param {{ cart: { lines: { id: string; quantity: number; merchandise: { __typename: string; product?: { id: string } } }[] }, discount: { discountClasses: string[] } }} input */
