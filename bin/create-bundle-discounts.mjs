@@ -58,7 +58,12 @@ const priceOf = (h) => {
 };
 const BASE = priceOf('olto-1');
 
-const FIND = `query($q:String!){ codeDiscountNodeByCode(code:$q){ id codeDiscount{ ...on DiscountCodeBasic{ title status } } } }`;
+// The existing target list comes back too: the update path has to REMOVE
+// products that have left the kit, not just add new ones. Without
+// productsToRemove a handle dropped from KITS stays targeted by the code
+// forever, silently, because productsToAdd is a no-op for it.
+const FIND = `query($q:String!){ codeDiscountNodeByCode(code:$q){ id codeDiscount{ ...on DiscountCodeBasic{ title status
+  customerGets{ items{ ...on DiscountProducts { products(first:50){ nodes{ id handle } } } } } } } } }`;
 const CREATE = `mutation($d: DiscountCodeBasicInput!){ discountCodeBasicCreate(basicCodeDiscount:$d){ codeDiscountNode{id} userErrors{field message} } }`;
 
 for (const kit of KITS) {
@@ -78,6 +83,9 @@ for (const kit of KITS) {
       console.log(`  ${code.padEnd(24)} exists  (${existing.codeDiscountNodeByCode.codeDiscount.status})`);
       continue;
     }
+    const current = existing.codeDiscountNodeByCode.codeDiscount.customerGets?.items?.products?.nodes ?? [];
+    const want = kit.items.map((h) => byHandle[h].id);
+    const stale = current.filter((n) => !kit.items.includes(n.handle)).map((n) => n.id);
     await admin(
       `mutation($id:ID!,$d:DiscountCodeBasicInput!){discountCodeBasicUpdate(id:$id,basicCodeDiscount:$d){userErrors{field message}}}`,
       {
@@ -86,12 +94,15 @@ for (const kit of KITS) {
           minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: String(minimum) } },
           customerGets: {
             value: { discountAmount: { amount: String(amount), appliesOnEachItem: false } },
-            items: { products: { productsToAdd: kit.items.map((h) => byHandle[h].id) } },
+            items: { products: { productsToAdd: want, productsToRemove: stale } },
           },
         },
       }
     );
-    console.log(`  ${code.padEnd(24)} updated  -$${amount}  min $${minimum}`);
+    console.log(
+      `  ${code.padEnd(24)} updated  -$${amount}  min $${minimum}` +
+        (stale.length ? `  (removed ${stale.length} stale target${stale.length > 1 ? 's' : ''})` : '')
+    );
     continue;
   }
   console.log(`  ${code.padEnd(24)} -$${amount}  min $${minimum}  ${APPLY ? '' : '(dry run)'}`);
