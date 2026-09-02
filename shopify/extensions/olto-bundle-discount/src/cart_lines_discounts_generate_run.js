@@ -1,4 +1,26 @@
 /**
+ * ██ NOT DEPLOYED. DO NOT `shopify app deploy` THIS. ██
+ *
+ * Verified against the live store 2026-09-02: it has ZERO automatic discounts.
+ * Bundle pricing is done by three CODE discounts — OLTO-COMMUTER-BUNDLE,
+ * OLTO-CARGO-BUNDLE, OLTO-MAX-BUNDLE — created and maintained by
+ * bin/create-bundle-discounts.mjs, and applied to the cart by
+ * src/infinite/infinite.js (BUNDLE_CODES).
+ *
+ * Deploying this extension would stack an automatic PRODUCT discount on top of
+ * those codes and take the bundle saving off TWICE, on every bundle cart. The
+ * trap is real enough that it nearly happened: print-bundle-discounts.mjs
+ * compares its TIERS table against the tier math and, on a mismatch, used to
+ * tell you to deploy. The mismatch it reports is repo-only — this file is not
+ * what prices anything.
+ *
+ * Kept rather than deleted because a Function is the better long-term shape: it
+ * can enforce the exact component set server-side, which a code cannot (codes
+ * fall back to a subtotal minimum). If it is ever adopted, DELETE THE THREE
+ * CODES IN THE SAME CHANGE.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
  * Olto bundle discount — cart.lines.discounts.generate.run
  *
  * Mirrors KITS in infinite-machine/src/infinite/ui.js. Keep the two in
@@ -11,9 +33,14 @@
  * 2026-08-27. Re-check with `node bin/print-bundle-discounts.mjs` whenever a
  * component price moves.
  *
- *   Commuter  Σ $326    tier $200  → −$126   (cart $3,695)
- *   Cargo     Σ $920    tier $600  → −$320   (cart $4,095)
- *   Max       Σ $1,196  tier $780  → −$416   (cart $4,275)
+ *   Commuter  Σ $302    tier $200  → −$102   (cart $3,695)
+ *   Cargo     Σ $822    tier $500  → −$322   (cart $3,995)
+ *   Max       Σ $1,098  tier $680  → −$418   (cart $4,175)
+ *
+ * (Σ figures re-verified 2026-09-02 after the discontinued Olto Soft Bag left
+ * Cargo and Max. The old Commuter Σ recorded here was $326, which never matched
+ * the four products in KITS.commuter — $302 — and is where the phantom −$126
+ * came from.)
  *
  * Rules: the machine AND the tier's full component set must be present; the
  * largest matching tier wins; one bundle per cart (the machine's quantity is

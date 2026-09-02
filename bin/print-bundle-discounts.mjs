@@ -66,7 +66,7 @@ for (const p of Object.values(json.data)) {
 }
 
 let drift = 0;
-console.log(`\n${'Bundle'.padEnd(16)}${'components'.padStart(12)}${'tier'.padStart(8)}${'should be'.padStart(12)}${'function'.padStart(11)}`);
+console.log(`\n${'Bundle'.padEnd(16)}${'components'.padStart(12)}${'tier'.padStart(8)}${'should be'.padStart(12)}${'extension'.padStart(11)}`);
 for (const kit of kits) {
   const missing = kit.items.filter((h) => !(h in price));
   const sum = kit.items.reduce((s, h) => s + (price[h] || 0), 0);
@@ -86,12 +86,19 @@ for (const kit of kits) {
   }
 }
 
+// The 'extension' column is read out of the repo file, NOT from Shopify. The
+// extension is NOT DEPLOYED — the live mechanism is the three OLTO-*-BUNDLE
+// code discounts. So a mismatch here is repo-only and has never affected a
+// customer, and the fix is never `shopify app deploy`: deploying would stack an
+// automatic discount on top of the codes and discount every bundle twice.
 if (drift) {
   console.error(
-    `\n${drift} tier(s) out of sync. Update TIERS in ` +
-      'shopify/extensions/olto-bundle-discount/src/cart_lines_discounts_generate_run.js, re-run its tests, ' +
-      'then `shopify app deploy`.\n'
+    `\n${drift} tier(s) out of sync with the (undeployed) extension. Update TIERS in ` +
+      'shopify/extensions/olto-bundle-discount/src/cart_lines_discounts_generate_run.js ' +
+      'and re-run its tests. Do NOT `shopify app deploy` — see that file\'s header.\n' +
+      'To change what customers actually pay, edit KITS in src/infinite/ui.js and run\n' +
+      '  node bin/create-bundle-discounts.mjs --update --apply\n'
   );
   process.exit(1);
 }
-console.log('\nAll tiers match the deployed amounts.\n');
+console.log('\nAll tiers match the extension file. (Live pricing is the codes — see above.)\n');
