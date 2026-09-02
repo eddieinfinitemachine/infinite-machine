@@ -492,7 +492,43 @@ function ensureInitialized() {
   if (!cartId) throw new Error('[Cart] Called before initCart(config)');
 }
 
+// Notify batching.
+//
+// Every mutation notifies TWICE — once optimistically, once when the server
+// snapshot lands — and each notify repaints. An operation built from two
+// mutations (select a bundle: remove some lines, add others) therefore repaints
+// four times, and because the second mutation is awaited behind the first, the
+// intermediate state is on screen for a full round trip rather than a frame.
+// For bundles that intermediate state is "no accessories", which is what made
+// the configurator look like it was building, unbuilding and rebuilding.
+//
+// withBatchedNotify collapses that to a single notify at the end. Reads are
+// unaffected — getCart() is live throughout, so any caller that wants to paint
+// an optimistic state mid-batch can still do it by calling its own render.
+let notifyDepth = 0;
+let notifyPending = false;
+
+export async function withBatchedNotify(fn) {
+  notifyDepth += 1;
+  try {
+    return await fn();
+  } finally {
+    notifyDepth -= 1;
+    // Always flush, including on the error path — a caller that threw halfway
+    // still changed the cart, and leaving the UI on the pre-batch state would
+    // be worse than showing the partial result.
+    if (notifyDepth === 0 && notifyPending) {
+      notifyPending = false;
+      notify();
+    }
+  }
+}
+
 function notify() {
+  if (notifyDepth > 0) {
+    notifyPending = true;
+    return;
+  }
   for (const h of handlers) h(cartState);
 }
 

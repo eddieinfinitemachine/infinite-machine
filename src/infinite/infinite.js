@@ -20,6 +20,7 @@ import {
   setProducts,
   startNewConfigSession,
   updateLine,
+  withBatchedNotify,
 } from '../lib/cart.js';
 import { client } from '../lib/client.js';
 import { countries } from '../lib/countries.js';
@@ -607,25 +608,52 @@ async function selectBundle(handle) {
     // purpose should survive them changing their mind about the kit, the same
     // way adding a helmet no longer drops the kit (state.js does the matching
     // as a superset for exactly this reason).
+    // DIFF, don't clear-and-refill. The previous version removed every line
+    // belonging to ANY kit and then added the whole target kit back, so the three
+    // accessories all three kits share — sidewalls, charging dock, phone mount —
+    // were torn off the bike and put straight back on with a Storefront round
+    // trip in between. Commuter -> Cargo moved fourteen lines to change seven,
+    // and every shared layer blinked on the way.
+    //
+    // Carried-over lines keep the `_bundle` attribute from whichever kit first
+    // added them, so it can now be stale. Deliberate, and currently free:
+    // `_bundle` is written and never read — not here, not in the CRM — and the
+    // real analytics signal is the pushDataLayer('select_bundle') above. If
+    // anything ever starts reading it, this is the line to revisit.
+    const kit = intent ? KITS.find((k) => k.key === intent) : null;
+    const target = new Set(kit?.items || []);
     const kitMembers = new Set(KITS.flatMap((k) => k.items));
-    const lineIds = getState()
-      .accessoryLines.filter((l) => kitMembers.has(l.merchandise.product.handle))
+
+    const accLines = getState().accessoryLines;
+    const present = new Set(accLines.map((l) => l.merchandise.product.handle));
+
+    // Only kit members the target does not want. A standalone accessory is not a
+    // kit member, so it still survives — same guarantee as before.
+    const lineIds = accLines
+      .filter((l) => {
+        const h = l.merchandise.product.handle;
+        return kitMembers.has(h) && !target.has(h);
+      })
       .map((l) => l.id)
       .filter((id) => !String(id).startsWith('tmp_'));
-    if (lineIds.length) await removeLines(lineIds);
 
-    const kit = KITS.find((k) => k.key === handle);
-    if (!intent || !kit?.items.length) return;
-
-    const items = kit.items
+    // Only what is missing. Deselecting leaves target empty, so this is [] and
+    // the removal above clears the kit — no early return needed.
+    const items = [...target]
+      .filter((h) => !present.has(h))
       .map((h) => {
         const variant = firstVariant(products.accessories.find((a) => a.handle === h));
-        // _bundle rides along for checkout-side analytics (same as upstream);
-        // the UI's active state is derived from the line set, not this attribute.
-        return variant ? { variantId: variant.id, attributes: { _bundle: handle } } : null;
+        return variant ? { variantId: variant.id, attributes: { _bundle: intent } } : null;
       })
       .filter(Boolean);
-    if (items.length) await addLines(items);
+
+    // One visual commit for both mutations — see withBatchedNotify in
+    // lib/cart.js. Without it the removal paints on its own and the bike sits
+    // bare for the whole round trip while the add is still in flight.
+    await withBatchedNotify(async () => {
+      if (lineIds.length) await removeLines(lineIds);
+      if (items.length) await addLines(items);
+    });
   } catch (err) {
     console.error('[Infinite] Bundle select failed:', err);
   } finally {
