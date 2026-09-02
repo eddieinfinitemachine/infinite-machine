@@ -255,17 +255,21 @@ export function buildPage({ config, products, wrapVariantsByColor }) {
 
   return `
     <header class="topbar">
-      <div class="topbar_mark">${WORDMARK_SVG}</div>
+      <!-- The wordmark is the only way out. The configurator mounts as a direct
+           child of <body> at min-height:100dvh, so the site nav is not on the
+           page at all — without this a buyer who enters has no route back and
+           has to use the browser's back button. -->
+      <a class="topbar_mark" href="/" aria-label="Infinite Machine — back to home">${WORDMARK_SVG}</a>
     </header>
 
     <!-- Wide-desktop left rail (live-site configurator layout); hidden on
          mobile/tablet. [data-summary]/[data-summary-total]/[data-config-reset]
          are duplicated from the sheet — the render helpers update every match. -->
     <aside class="rail" aria-label="Olto specifications">
-      <div class="rail_mark">
+      <a class="rail_mark" href="/" aria-label="Infinite Machine — back to home">
         ${WORDMARK_SVG}
         <div class="rail_olto">${OLTO_WORDMARK_SVG}</div>
-      </div>
+      </a>
       <div class="rail_facts">
         <div class="rail_row">
           <span class="rail_key">Shipping</span>

@@ -241,10 +241,32 @@
 }
 
 .boot_mark,
+/* Both wordmarks are anchors (the only way out of the configurator — the site
+   nav is not on this page). They therefore need the UA's link styling undone,
+   and rail_mark needs an explicit display: as an <a> it would otherwise be
+   inline and collapse the rail's stacked layout. */
 .topbar_mark {
   display: flex;
   justify-content: center;
   color: var(--ink);
+  text-decoration: none;
+  /* .topbar is pointer-events:none so the hero underneath stays draggable. The
+     wordmark is the one thing in that bar you are meant to be able to click, so
+     it opts back in — without this the link renders correctly and silently does
+     nothing, which is worse than not linking it at all. */
+  pointer-events: auto;
+}
+
+.rail_mark {
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.topbar_mark:focus-visible,
+.rail_mark:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
 }
 
 .im-wordmark {
