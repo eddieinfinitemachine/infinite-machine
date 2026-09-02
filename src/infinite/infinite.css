@@ -829,6 +829,17 @@
   color: var(--ink-2);
 }
 
+/* Ship date. Quieter than the price and sits under the whole info block rather
+   than inside it, so a long date wraps against the card rather than squeezing
+   the name. Only rendered when custom.accessory_etas is set. */
+.acc_eta {
+  margin-top: 3px;
+  font-size: 11.5px;
+  line-height: 1.3;
+  color: var(--ink-2);
+  opacity: 0.8;
+}
+
 /* Product options on a card (helmet size/color — team review, Aug 26).
    Colour is chips, size is a select — see buildAccessoryOption in ui.js. */
 .acc_opts {

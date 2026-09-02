@@ -738,6 +738,18 @@ function buildAccessoryCard(p) {
           parseFloat(v.price.amount),
           v.price.currencyCode
         )}</div>
+        ${
+          /* Ship date, from the Shopify metafield custom.accessory_etas (fetched
+             in lib/products.js as accessoryEta). The parts-kit renderer showed
+             this — lib/templates.js, "In {value}" — and the cutover to this UI
+             dropped it, so an accessory whose PDP badge reads "Ships 2027" has
+             been rendering here as an ordinary tile that adds straight to the
+             cart with no date anywhere. Inside .acc_info deliberately: the card
+             is a flex column with gap:10px, so as a direct child it would float
+             away from the price it belongs with. Hidden when the metafield is
+             unset — same rule the old renderer used. */
+          p.accessoryEta ? `<div class="acc_eta" data-acc-eta>In ${esc(p.accessoryEta)}</div>` : ''
+        }
       </div>
       ${
         options.length
