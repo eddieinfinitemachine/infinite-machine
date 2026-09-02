@@ -1726,7 +1726,6 @@
   }
 }
 
-
 /* Heading text for crawlers and screen readers. The H1 is the Olto wordmark
    SVG; its aria-label serves assistive tech but Google does not reliably treat
    an SVG aria-label as heading text, so the page would otherwise have no H1. */
